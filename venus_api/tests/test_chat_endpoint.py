@@ -1,2 +1,5 @@
-# Testes dos endpoints da API: verifica que POST /v1/chat responde 200 com
-# um campo "resposta" e que GET /v1/health responde {"status": "ok"}.
+def test_health_endpoint(client):
+	response = client.get("/v1/health")
+
+	assert response.status_code == 200
+	assert response.json() == {"status": "ok"}

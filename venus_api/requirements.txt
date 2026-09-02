@@ -3,8 +3,7 @@ uvicorn[standard]>=0.32
 pydantic-settings>=2.6
 langgraph>=0.2
 
-# SDK do Venus — fixe a tag ao entregar; use -e ../Venus-AI-SDK em dev local
-venus @ git+https://github.com/sua-org/Venus-AI-SDK.git@v0.1.0
+# SDK do Venus: configurar uma URL real antes de ativar esta dependência.
 
 pytest>=8.3
 httpx>=0.28
