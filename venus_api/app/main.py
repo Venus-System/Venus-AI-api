@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from venus_sdk.flows.venus_flow import compilar_grafo_venus
 from venus_sdk.memory.checkpointer import criar_checkpointer_em_memoria
 
-from venus_api.app.api.v1.endpoints.health import router as health_router
+from venus_api.app.api.v1.router import router as v1_router
 
 
 @asynccontextmanager
@@ -17,4 +17,4 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Venus AI API", lifespan=lifespan)
-app.include_router(health_router, prefix="/v1")
+app.include_router(v1_router, prefix="/v1")

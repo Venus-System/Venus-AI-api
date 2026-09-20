@@ -11,9 +11,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import Header, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from venus_api.app.core.security import validar_token
+
+# auto_error=False: sem o header, queremos responder 401 (e não o 403 que o
+# HTTPBearer devolve por padrão).
+_bearer = HTTPBearer(auto_error=False)
 
 
 def get_fluxo_venus(request: Request) -> Any:
@@ -22,16 +27,14 @@ def get_fluxo_venus(request: Request) -> Any:
     return request.app.state.fluxo_venus
 
 
-def get_session_id(authorization: str | None = Header(default=None)) -> str:
-    """Valida o token do header `Authorization` e devolve o `thread_id` da
-    conversa (o `id` do usuário validado).
-
-    Provisório: uma conversa por usuário (o `id` do usuário É o
-    `thread_id`). Suportar múltiplas conversas por usuário exigiria um
-    identificador adicional, vindo do corpo da requisição.
-    """
+def get_session_id(
+    credenciais: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> str:
+    """Valida o `Authorization: Bearer <ID token do Firebase>` e devolve o
+    `uid` do usuário — usado como identidade e como base do `thread_id` da
+    conversa."""
     try:
-        usuario = validar_token(authorization)
+        usuario = validar_token(credenciais.credentials if credenciais else None)
     except ValueError as erro:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(erro)) from erro
     return usuario.id
