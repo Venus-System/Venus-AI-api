@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from venus_api.app.api.deps import get_fluxo_venus, get_session_id
+from venus_api.app.observability import tracing
 from venus_api.app.schemas.chat import ChatRequest, ChatResponse
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,14 @@ async def chat(
         estado["usuario_id_postgres"] = requisicao.usuario_id_postgres
 
     try:
-        resultado = await fluxo.ainvoke(estado, config={"configurable": {"thread_id": thread_id}})
+        with tracing.atributos_do_trace(usuario_id, conversation_id):
+            resultado = await fluxo.ainvoke(
+                estado,
+                config={
+                    "configurable": {"thread_id": thread_id},
+                    "callbacks": tracing.callbacks_do_trace(),
+                },
+            )
     except Exception as erro:
         logger.exception("Falha ao invocar o grafo Venus (thread_id=%s)", thread_id)
         raise HTTPException(

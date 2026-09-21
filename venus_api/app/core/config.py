@@ -22,5 +22,12 @@ class Settings(BaseSettings):
     # ver `infra/checkpointer.py`.
     mongodb_url: str | None = None
 
+    # Langfuse: rastreia o que acontece dentro do grafo (tempo de cada agente,
+    # tokens, custo). Sem as chaves, o chat funciona normal, só não é
+    # rastreado. A base_url depende da região onde a conta foi criada.
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: str | None = None
+    langfuse_base_url: str | None = None
+
 
 settings = Settings()
