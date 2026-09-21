@@ -2,8 +2,8 @@ fastapi>=0.115
 uvicorn[standard]>=0.32
 pydantic-settings>=2.6
 langgraph>=0.2
+firebase-admin>=6.5
 
-# SDK do Venus: configurar uma URL real antes de ativar esta dependência.
-
+venus-ai-sdk @ git+https://github.com/Venus-System/Venus-AI-Sdk.git@develop
 pytest>=8.3
 httpx>=0.28

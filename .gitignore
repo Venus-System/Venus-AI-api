@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Credencial da conta de serviço do Firebase — é chave de administrador do
+# projeto, nunca pode ir pro repositório.
+firebase-credentials.json
+serviceAccountKey.json
+*-firebase-adminsdk-*.json
