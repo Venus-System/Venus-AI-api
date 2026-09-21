@@ -7,6 +7,7 @@ from venus_api.app.api.deps import get_fluxo_venus
 from venus_api.app.core import security
 from venus_api.app.core.config import settings
 from venus_api.app.main import app
+from venus_api.app.observability import middleware, tracing
 
 UID_DE_TESTE = "uid-de-teste"
 TOKEN_VALIDO = "token-valido"
@@ -25,11 +26,46 @@ class FluxoFalso:
 		return {"resposta_final": self.resposta}
 
 
+class ColecaoFalsa:
+	"""Coleção de mentira pra capturar as métricas que o middleware grava."""
+
+	def __init__(self) -> None:
+		self.documentos: list[dict[str, Any]] = []
+
+	def insert_one(self, documento: dict[str, Any]) -> None:
+		self.documentos.append(documento)
+
+
 @pytest.fixture(autouse=True)
 def sem_mongo_real(monkeypatch):
 	"""Teste nunca fala com um Mongo de verdade, mesmo com MONGODB_URL no
-	`.env` da máquina — o startup cai na versão em RAM."""
+	`.env` da máquina — o startup cai na versão em RAM e o middleware não
+	grava métrica."""
 	monkeypatch.setattr(settings, "mongodb_url", None)
+	# Guarda a função real: a fixture `metricas` troca ela por uma falsa (sem
+	# cache), e o teardown aqui roda antes do monkeypatch desfazer a troca.
+	colecao_real = middleware._colecao_metricas
+	colecao_real.cache_clear()
+	yield
+	colecao_real.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def sem_langfuse_real(monkeypatch):
+	"""Teste nunca manda trace pro Langfuse, mesmo com as chaves no `.env`."""
+	monkeypatch.setattr(settings, "langfuse_public_key", None)
+	monkeypatch.setattr(settings, "langfuse_secret_key", None)
+	langfuse_real = tracing.get_langfuse
+	langfuse_real.cache_clear()
+	yield
+	langfuse_real.cache_clear()
+
+
+@pytest.fixture
+def metricas(monkeypatch) -> ColecaoFalsa:
+	colecao = ColecaoFalsa()
+	monkeypatch.setattr(middleware, "_colecao_metricas", lambda: colecao)
+	return colecao
 
 
 @pytest.fixture(autouse=True)

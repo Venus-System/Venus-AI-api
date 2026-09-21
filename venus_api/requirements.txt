@@ -3,6 +3,7 @@ uvicorn[standard]>=0.32
 pydantic-settings>=2.6
 langgraph>=0.2
 firebase-admin>=6.5
+langfuse>=4.15
 
 venus-ai-sdk[mongo] @ git+https://github.com/Venus-System/Venus-AI-Sdk.git@develop
 pytest>=8.3
