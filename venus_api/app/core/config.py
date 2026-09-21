@@ -17,5 +17,10 @@ class Settings(BaseSettings):
     # entregue em produção.
     firebase_credentials: str | None = None
 
+    # Conexão do MongoDB que guarda histórico de conversa (checkpointer) e
+    # memória de longo prazo (store). Sem ela, ambos caem na versão em RAM —
+    # ver `infra/checkpointer.py`.
+    mongodb_url: str | None = None
+
 
 settings = Settings()

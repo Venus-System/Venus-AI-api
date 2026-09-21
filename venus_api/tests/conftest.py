@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from venus_api.app.api.deps import get_fluxo_venus
 from venus_api.app.core import security
+from venus_api.app.core.config import settings
 from venus_api.app.main import app
 
 UID_DE_TESTE = "uid-de-teste"
@@ -22,6 +23,13 @@ class FluxoFalso:
 	async def ainvoke(self, estado: dict, config: dict | None = None) -> dict:
 		self.chamadas.append({"estado": estado, "config": config})
 		return {"resposta_final": self.resposta}
+
+
+@pytest.fixture(autouse=True)
+def sem_mongo_real(monkeypatch):
+	"""Teste nunca fala com um Mongo de verdade, mesmo com MONGODB_URL no
+	`.env` da máquina — o startup cai na versão em RAM."""
+	monkeypatch.setattr(settings, "mongodb_url", None)
 
 
 @pytest.fixture(autouse=True)
