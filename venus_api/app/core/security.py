@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -21,6 +22,33 @@ class Usuario:
     id: str
 
 
+def _montar_credencial() -> credentials.Base:
+    """Monta a credencial do Firebase a partir de `FIREBASE_CREDENTIALS`.
+
+    Aceita o CONTEÚDO do JSON (começa com `{`) ou o CAMINHO do arquivo. Na
+    nuvem não existe pasta pra deixar o arquivo, então o segredo entra como
+    variável de ambiente; localmente é mais prático apontar pro arquivo.
+
+    Todo erro aqui vira `RuntimeError` de propósito: `JSONDecodeError` e o
+    erro de certificado inválido herdam de `ValueError`, e `deps.py` traduz
+    `ValueError` em 401 — uma credencial quebrada se passaria por "token
+    inválido" em vez de aparecer como o erro de configuração (500) que é.
+    """
+    valor = (settings.firebase_credentials or "").strip()
+    if not valor:
+        return credentials.ApplicationDefault()
+
+    try:
+        if valor.startswith("{"):
+            return credentials.Certificate(json.loads(valor))
+        return credentials.Certificate(valor)
+    except ValueError as erro:
+        raise RuntimeError(
+            "FIREBASE_CREDENTIALS inválida: precisa ser o conteúdo do JSON da "
+            "conta de serviço ou o caminho do arquivo."
+        ) from erro
+
+
 @lru_cache(maxsize=1)
 def _inicializar_firebase() -> None:
     """Inicializa o Firebase Admin na primeira validação, não no startup.
@@ -30,12 +58,7 @@ def _inicializar_firebase() -> None:
     credencial faltar, o erro levantado aqui já diz qual arquivo não foi
     encontrado.
     """
-    credencial = (
-        credentials.Certificate(settings.firebase_credentials)
-        if settings.firebase_credentials
-        else credentials.ApplicationDefault()
-    )
-    firebase_admin.initialize_app(credencial)
+    firebase_admin.initialize_app(_montar_credencial())
 
 
 def validar_token(token: str | None) -> Usuario:

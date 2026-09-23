@@ -51,6 +51,21 @@ def sem_mongo_real(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def sem_postgres_real(monkeypatch):
+	"""Teste nunca abre conexão com um Postgres de verdade, mesmo com
+	DATABASE_URL no `.env` da máquina — sem URL o pool nem é tentado."""
+	monkeypatch.setattr(settings, "database_url", None)
+
+
+@pytest.fixture(autouse=True)
+def sem_a2a_real(monkeypatch):
+	"""O servidor A2A começa desligado em todo teste, mesmo com as variáveis
+	no `.env` da máquina. Os testes de A2A o ligam de propósito."""
+	monkeypatch.setattr(settings, "a2a_api_key", None)
+	monkeypatch.setattr(settings, "a2a_base_url", None)
+
+
+@pytest.fixture(autouse=True)
 def sem_langfuse_real(monkeypatch):
 	"""Teste nunca manda trace pro Langfuse, mesmo com as chaves no `.env`."""
 	monkeypatch.setattr(settings, "langfuse_public_key", None)
