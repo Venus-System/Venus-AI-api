@@ -35,6 +35,7 @@ elas parte das funções fica desligada.
 | `DATABASE_URL` | Postgres do CRUD (produto, ingrediente, alergia) | Esses especialistas avisam que não conseguiram consultar |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | Rastreamento no Langfuse | Sem rastreamento |
 | `A2A_API_KEY`, `A2A_BASE_URL` | Servidor A2A em `/a2a` (chave no header `X-API-Key`; a URL pública da API, sem barra no fim) | Servidor A2A desligado — precisa das duas |
+| `FAQ_DIR` | Pasta com os documentos do FAQ usados no RAG do agente FAQ | Usa `venus_api/data/faq/`, que já vai na imagem |
 
 ## Subir a API
 

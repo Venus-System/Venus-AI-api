@@ -7,6 +7,7 @@ from venus_api.app.api.a2a import ROTA_A2A, A2ADinamico, criar_app_a2a
 from venus_api.app.api.v1.router import router as v1_router
 from venus_api.app.infra.checkpointer import criar_checkpointer
 from venus_api.app.infra.postgres import criar_pool
+from venus_api.app.infra.rag import criar_indice_faq
 from venus_api.app.infra.store import criar_store
 from venus_api.app.observability import tracing
 from venus_api.app.observability.middleware import medir_requisicao
@@ -20,6 +21,7 @@ async def lifespan(app: FastAPI):
             checkpointer=criar_checkpointer(),
             store=criar_store(),
             pool=pool,
+            indice_rag=criar_indice_faq(),
         )
         app.state.a2a_app = criar_app_a2a(app.state.fluxo_venus)
         yield
