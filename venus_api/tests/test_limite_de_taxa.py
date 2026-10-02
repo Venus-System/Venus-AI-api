@@ -80,3 +80,76 @@ def test_limitador_mongo_conta_por_janela_e_expira_sozinho(monkeypatch):
 	assert resultados[:2] == [None, None] and resultados[2] is not None
 	assert asyncio.run(limitador.registrar("uid-2")) is None
 	assert ("expira_em", {"expireAfterSeconds": 0}) in colecao.indices
+
+
+# --- Revisão técnica 2, item 4: Mongo fora do ar não derruba a API -----------
+
+
+class _ColecaoForaDoAr(_ColecaoFalsa):
+	"""Coleção cujo Mongo caiu: toda operação levanta erro de conexão."""
+
+	def __init__(self, falha_no_indice=True, falha_na_contagem=True):
+		super().__init__()
+		self.falha_no_indice, self.falha_na_contagem = falha_no_indice, falha_na_contagem
+		self.tentativas_de_indice = 0
+
+	def create_index(self, campo, **opcoes):
+		self.tentativas_de_indice += 1
+		if self.falha_no_indice:
+			raise ConnectionError("Mongo fora do ar")
+		super().create_index(campo, **opcoes)
+
+	def find_one_and_update(self, *args, **kwargs):
+		if self.falha_na_contagem:
+			raise ConnectionError("Mongo fora do ar")
+		return super().find_one_and_update(*args, **kwargs)
+
+
+def test_create_index_falhando_nao_impede_criar_o_limitador():
+	colecao = _ColecaoForaDoAr()
+	limite_de_taxa.LimitadorMongo(colecao)  # não levanta
+	assert colecao.tentativas_de_indice == 0  # o índice só é criado no primeiro registrar
+
+
+def test_indice_e_tentado_de_novo_na_chamada_seguinte_se_falhar(monkeypatch):
+	monkeypatch.setattr(settings, "chat_limite_por_minuto", 100)
+	colecao = _ColecaoForaDoAr(falha_no_indice=True, falha_na_contagem=False)
+	limitador = limite_de_taxa.LimitadorMongo(colecao)
+	asyncio.run(limitador.registrar("uid-1"))
+	colecao.falha_no_indice = False
+	asyncio.run(limitador.registrar("uid-1"))
+	asyncio.run(limitador.registrar("uid-1"))
+	assert colecao.tentativas_de_indice == 2
+	assert ("expira_em", {"expireAfterSeconds": 0}) in colecao.indices
+
+
+def test_mongo_falhando_na_contagem_cai_no_limite_em_memoria(monkeypatch, caplog):
+	monkeypatch.setattr(settings, "chat_limite_por_minuto", 20)
+	monkeypatch.setattr(settings, "chat_limite_por_dia", 300)
+	limitador = limite_de_taxa.LimitadorMongo(_ColecaoForaDoAr())
+
+	resultados = [asyncio.run(limitador.registrar("uid-1")) for _ in range(21)]
+	assert resultados[:20] == [None] * 20
+	assert resultados[20] is not None and resultados[20] >= 1
+	assert any(r.levelname == "ERROR" and "memória" in r.getMessage() for r in caplog.records)
+
+
+def test_chat_nao_devolve_500_com_o_limitador_falhando(client_http, auth_headers):
+	from venus_api.app.api.deps import get_limitador
+	from venus_api.app.main import app
+
+	app.dependency_overrides[get_limitador] = lambda: limite_de_taxa.LimitadorMongo(_ColecaoForaDoAr())
+	resposta = client_http.post("/v1/chat", json={"mensagem": "oi"}, headers=auth_headers)
+	assert resposta.status_code == 200
+
+
+def test_criar_limitador_nao_conecta_no_mongo_no_startup(monkeypatch):
+	import time
+
+	# Porta fechada: com uma conexão bloqueante no startup, isso levaria o
+	# timeout de seleção de servidor do pymongo (30 s) e depois levantaria.
+	monkeypatch.setattr(settings, "mongodb_url", "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=3000")
+	inicio = time.monotonic()
+	limitador = limite_de_taxa.criar_limitador()
+	assert isinstance(limitador, limite_de_taxa.LimitadorMongo)
+	assert time.monotonic() - inicio < 2
