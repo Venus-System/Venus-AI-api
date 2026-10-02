@@ -99,8 +99,9 @@ def test_mensagem_com_chave_certa_chega_ao_grafo_e_volta(a2a_ligado, fluxo_falso
 
 	chamada = fluxo_falso.chamadas[0]
 	assert chamada["estado"]["mensagem_usuario"] == "oi"
-	# O `contextId` do A2A é o `thread_id` do histórico da conversa.
-	assert chamada["config"]["configurable"]["thread_id"] == "conversa-a2a"
+	# O `contextId` do A2A é o `thread_id` do histórico da conversa (a partir
+	# do SDK 0.2.0, no namespace "a2a:", separado das conversas do app).
+	assert chamada["config"]["configurable"]["thread_id"].removeprefix("a2a:") == "conversa-a2a"
 
 
 def test_a2a_e_chat_nao_aceitam_a_credencial_um_do_outro(a2a_ligado, auth_headers):

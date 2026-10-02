@@ -1,3 +1,4 @@
+import os
 from typing import Any
 
 import pytest
@@ -127,3 +128,8 @@ def client_http(fluxo_falso: FluxoFalso):
 @pytest.fixture
 def auth_headers() -> dict[str, str]:
 	return {"Authorization": f"Bearer {TOKEN_VALIDO}"}
+
+
+# O índice local do FAQ usa o EmbeddingsHash nos testes (sem baixar o modelo
+# do FastEmbed), mesmo com o extra `rag` instalado.
+os.environ.setdefault("VENUS_EMBEDDINGS_LOCAIS", "hash")

@@ -2,6 +2,8 @@
 
 API de integração entre aplicações e agentes de IA do Venus
 
+Arquitetura do sistema (componentes e o caminho de uma mensagem): [`docs/arquitetura-sistema.md`](docs/arquitetura-sistema.md).
+
 ## Instalação
 
 Na raiz do projeto, execute:
@@ -10,8 +12,13 @@ Na raiz do projeto, execute:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -r venus_api/requirements.txt
+python -m pip install -r venus_api/requirements-dev.txt
 ```
+
+`requirements.txt` tem só o que vai para produção (é o que a imagem Docker
+instala); `requirements-dev.txt` acrescenta `pytest` e `httpx`. O SDK é
+instalado por **tag** (`@v0.1.0`), não por branch — para atualizar, siga o
+processo de release do README do SDK e troque a tag.
 
 ## Testes
 
@@ -35,6 +42,13 @@ elas parte das funções fica desligada.
 | `DATABASE_URL` | Postgres do CRUD (produto, ingrediente, alergia) | Esses especialistas avisam que não conseguiram consultar |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | Rastreamento no Langfuse | Sem rastreamento |
 | `A2A_API_KEY`, `A2A_BASE_URL` | Servidor A2A em `/a2a` (chave no header `X-API-Key`; a URL pública da API, sem barra no fim) | Servidor A2A desligado — precisa das duas |
+| `FAQ_DIR` | Pasta com os documentos do FAQ usados no RAG do agente FAQ | Usa `venus_api/data/faq/`, que já vai na imagem |
+| `QDRANT_URL`, `QDRANT_API_KEY` | Coleção do FAQ no Qdrant (alimentada pela ingestão do SDK: `python -m venus_sdk.rag.faq_ingest`) | Índice local em memória sobre `FAQ_DIR`, com o mesmo modelo de embeddings (FastEmbed) |
+| `FASTEMBED_CACHE_PATH` | Pasta onde o modelo de embeddings (~220 MB) fica guardado | O modelo é baixado de novo a cada container novo |
+| `TAVILY_API_KEY` | Busca na web do agente FAQ pela Tavily | Usa o DuckDuckGo |
+| `MCP_SERVERS` | JSON com servidores MCP externos, cujas tools o agente FAQ pode usar | Sem tools MCP externas |
+| `CHAT_LIMITE_POR_MINUTO`, `CHAT_LIMITE_POR_DIA` | Máximo de mensagens por usuário no `/v1/chat` (padrão 20/min e 300/dia); acima disso, `429` com `Retry-After`. Com `MONGODB_URL` o contador é compartilhado entre instâncias | — |
+| `A2A_AGENTES_EXTERNOS` | JSON `{"nome": "http://host:porta"}` de agentes A2A que o FAQ pode consultar | Sem consulta a agentes externos |
 
 ## Subir a API
 

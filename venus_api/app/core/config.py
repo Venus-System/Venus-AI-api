@@ -43,5 +43,21 @@ class Settings(BaseSettings):
     a2a_api_key: str | None = None
     a2a_base_url: str | None = None
 
+    # Pasta com os documentos do FAQ, indexados pro RAG do agente FAQ. Sem ela,
+    # usa `venus_api/data/faq/`, que já vai na imagem — ver `infra/rag.py`.
+    faq_dir: str | None = None
+
+    # Tools externas do agente FAQ (ver `infra/ferramentas_externas.py`), em
+    # JSON: MCP_SERVERS no formato do MultiServerMCPClient e
+    # A2A_AGENTES_EXTERNOS como {"nome": "http://host:porta"}. Sem elas, o FAQ
+    # usa só o índice do RAG e a busca na web.
+    mcp_servers: str | None = None
+    a2a_agentes_externos: str | None = None
+
+    # Limite de mensagens por usuário no /v1/chat (cada mensagem custa de 6 a
+    # 12 chamadas de LLM). Ver `infra/limite_de_taxa.py`.
+    chat_limite_por_minuto: int = 20
+    chat_limite_por_dia: int = 300
+
 
 settings = Settings()

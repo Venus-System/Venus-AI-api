@@ -1,5 +1,6 @@
 # Duas etapas: o `git` só existe na primeira (o pip precisa dele pra baixar o
-# SDK do Venus do GitHub) e não vai pra imagem final.
+# SDK do Venus do GitHub) e não vai pra imagem final. Só as dependências de
+# produção (requirements.txt): as ferramentas de teste não entram na imagem.
 FROM python:3.12-slim AS dependencias
 
 RUN apt-get update \

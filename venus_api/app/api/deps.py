@@ -27,6 +27,16 @@ def get_fluxo_venus(request: Request) -> Any:
     return request.app.state.fluxo_venus
 
 
+def get_pool(request: Request) -> Any:
+    """Pool do Postgres aberto no startup (`None` se não houver banco)."""
+    return getattr(request.app.state, "pool", None)
+
+
+def get_limitador(request: Request) -> Any:
+    """Limitador de mensagens criado no startup (ver `infra/limite_de_taxa.py`)."""
+    return request.app.state.limitador
+
+
 def get_session_id(
     credenciais: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> str:
