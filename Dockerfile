@@ -13,10 +13,12 @@ COPY venus_api/requirements.txt venus_api/requirements.txt
 RUN pip install --no-cache-dir --prefix=/instalado -r venus_api/requirements.txt
 
 # Modelo de embeddings do FAQ (FastEmbed, ~220 MB) baixado no build: em
-# produção o índice local do FAQ nunca depende de rede no startup.
+# produção o índice local do FAQ nunca depende de rede no startup. A imagem
+# final roda como `venus`, não root: o cache precisa ficar legível por todos.
 ENV FASTEMBED_CACHE_PATH=/modelos/fastembed
 RUN PYTHONPATH=/instalado/lib/python3.12/site-packages \
-    python -c "from venus_sdk.rag.vector_build import get_embed_model; get_embed_model()"
+    python -c "from venus_sdk.rag.vector_build import get_embed_model; get_embed_model()" \
+    && chmod -R a+rX /modelos
 
 
 FROM python:3.12-slim
