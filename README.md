@@ -2,6 +2,8 @@
 
 API de integração entre aplicações e agentes de IA do Venus
 
+Arquitetura do sistema (componentes e o caminho de uma mensagem): [`docs/arquitetura-sistema.md`](docs/arquitetura-sistema.md).
+
 ## Instalação
 
 Na raiz do projeto, execute:
