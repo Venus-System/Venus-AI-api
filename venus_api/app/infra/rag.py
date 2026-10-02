@@ -1,10 +1,12 @@
 # Índice do RAG do agente FAQ.
 #
-# O SDK monta o índice a partir de uma pasta de documentos
-# (`venus_sdk.rag.criar_indice_local`), mas não sabe onde ela fica: o pacote
-# instalado via pip não leva a pasta `data/` do repositório do SDK. Os
-# documentos do FAQ ficam então aqui na API, em `venus_api/data/faq/` — dentro
-# de `venus_api/`, que o Dockerfile já copia pra imagem.
+# `venus_sdk.rag.criar_indice_faq` escolhe o índice: a coleção do Qdrant
+# quando `QDRANT_URL` está configurada (o conteúdo vem da ingestão do SDK), ou
+# o índice local em memória sobre uma pasta de documentos. Para o índice
+# local, o SDK não sabe onde a pasta fica (o pacote instalado via pip não leva
+# a pasta `data/` do repositório do SDK), então os documentos do FAQ ficam aqui
+# na API, em `venus_api/data/faq/` — dentro de `venus_api/`, que o Dockerfile
+# já copia pra imagem.
 
 from __future__ import annotations
 
@@ -12,7 +14,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from venus_sdk.rag import criar_indice_local
+from venus_sdk.rag import criar_indice_faq as criar_indice_do_sdk
 
 from venus_api.app.core.config import settings
 
@@ -30,7 +32,7 @@ def criar_indice_faq() -> Any | None:
     """
     pasta = Path(settings.faq_dir) if settings.faq_dir else PASTA_FAQ_PADRAO
     try:
-        return criar_indice_local(pasta)
+        return criar_indice_do_sdk(pasta)
     except Exception:
         logger.error(
             "Não consegui montar o índice do FAQ a partir de %s — o agente FAQ "
