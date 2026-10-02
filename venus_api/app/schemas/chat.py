@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
+from venus_sdk.guardrail_rules import TAMANHO_MAXIMO_MENSAGEM
 
 
 class ChatRequest(BaseModel):
@@ -12,7 +13,9 @@ class ChatRequest(BaseModel):
     # `usuario_id_postgres` continua funcionando, só sem esse efeito.
     model_config = ConfigDict(extra="allow")
 
-    mensagem: str = Field(min_length=1)
+    # Mesmo teto do guardrail do SDK: rejeita cedo (422), antes de gastar
+    # qualquer chamada de LLM.
+    mensagem: str = Field(min_length=1, max_length=TAMANHO_MAXIMO_MENSAGEM)
     # Omitido na primeira mensagem: a API devolve o id usado e o app o reenvia
     # nas seguintes (contrato combinado com o time do app, pra dar pra evoluir
     # pra histórico de várias conversas sem quebrar o contrato).

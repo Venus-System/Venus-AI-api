@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from venus_api.app.api.deps import get_fluxo_venus, get_pool, get_session_id
+from venus_api.app.api.deps import get_fluxo_venus, get_limitador, get_pool, get_session_id
 from venus_api.app.infra.postgres import resolver_usuario_postgres
 from venus_api.app.observability import tracing
 from venus_api.app.schemas.chat import ChatRequest, ChatResponse
@@ -30,7 +30,16 @@ async def chat(
     fluxo: Any = Depends(get_fluxo_venus),
     usuario_id: str = Depends(get_session_id),
     pool: Any = Depends(get_pool),
+    limitador: Any = Depends(get_limitador),
 ) -> ChatResponse:
+    espera = await limitador.registrar(usuario_id)
+    if espera is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Muitas mensagens em pouco tempo. Tente de novo daqui a pouco.",
+            headers={"Retry-After": str(espera)},
+        )
+
     # Sem conversation_id, o id do próprio usuário serve de conversa contínua —
     # assim o histórico não se perde nem se o app ignorar o id devolvido.
     conversation_id = requisicao.conversation_id or usuario_id

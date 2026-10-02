@@ -54,5 +54,10 @@ class Settings(BaseSettings):
     mcp_servers: str | None = None
     a2a_agentes_externos: str | None = None
 
+    # Limite de mensagens por usuário no /v1/chat (cada mensagem custa de 6 a
+    # 12 chamadas de LLM). Ver `infra/limite_de_taxa.py`.
+    chat_limite_por_minuto: int = 20
+    chat_limite_por_dia: int = 300
+
 
 settings = Settings()

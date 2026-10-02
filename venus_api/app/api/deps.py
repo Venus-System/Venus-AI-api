@@ -32,6 +32,11 @@ def get_pool(request: Request) -> Any:
     return getattr(request.app.state, "pool", None)
 
 
+def get_limitador(request: Request) -> Any:
+    """Limitador de mensagens criado no startup (ver `infra/limite_de_taxa.py`)."""
+    return request.app.state.limitador
+
+
 def get_session_id(
     credenciais: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> str:

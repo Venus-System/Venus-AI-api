@@ -40,6 +40,7 @@ elas parte das funções fica desligada.
 | `FASTEMBED_CACHE_PATH` | Pasta onde o modelo de embeddings (~220 MB) fica guardado | O modelo é baixado de novo a cada container novo |
 | `TAVILY_API_KEY` | Busca na web do agente FAQ pela Tavily | Usa o DuckDuckGo |
 | `MCP_SERVERS` | JSON com servidores MCP externos, cujas tools o agente FAQ pode usar | Sem tools MCP externas |
+| `CHAT_LIMITE_POR_MINUTO`, `CHAT_LIMITE_POR_DIA` | Máximo de mensagens por usuário no `/v1/chat` (padrão 20/min e 300/dia); acima disso, `429` com `Retry-After`. Com `MONGODB_URL` o contador é compartilhado entre instâncias | — |
 | `A2A_AGENTES_EXTERNOS` | JSON `{"nome": "http://host:porta"}` de agentes A2A que o FAQ pode consultar | Sem consulta a agentes externos |
 
 ## Subir a API

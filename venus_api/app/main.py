@@ -7,6 +7,7 @@ from venus_api.app.api.a2a import ROTA_A2A, A2ADinamico, criar_app_a2a
 from venus_api.app.api.v1.router import router as v1_router
 from venus_api.app.infra.checkpointer import criar_checkpointer
 from venus_api.app.infra.ferramentas_externas import carregar_tools_faq_extras
+from venus_api.app.infra.limite_de_taxa import criar_limitador
 from venus_api.app.infra.postgres import criar_pool
 from venus_api.app.infra.rag import criar_indice_faq
 from venus_api.app.infra.store import criar_store
@@ -19,6 +20,7 @@ async def lifespan(app: FastAPI):
     pool = await criar_pool()
     # O /v1/chat usa o pool para descobrir o user_id pelo uid do Firebase.
     app.state.pool = pool
+    app.state.limitador = criar_limitador()
     try:
         app.state.fluxo_venus = compilar_grafo_venus(
             checkpointer=criar_checkpointer(),
