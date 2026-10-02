@@ -108,3 +108,44 @@ def test_startup_sem_postgres_ainda_sobe(monkeypatch):
 		assert cliente.get("/v1/health").status_code == 200
 
 	assert recebido["pool"] is None
+
+
+class _ConexaoFalsa:
+	def __init__(self, linha=None, erro=None):
+		self.linha, self.erro, self.consultas = linha, erro, []
+
+	async def fetchrow(self, consulta, *args):
+		self.consultas.append((consulta, args))
+		if self.erro:
+			raise self.erro
+		return self.linha
+
+
+class _PoolFalso:
+	def __init__(self, conexao):
+		self.conexao = conexao
+
+	def acquire(self):
+		conexao = self.conexao
+
+		class _Contexto:
+			async def __aenter__(self_):
+				return conexao
+
+			async def __aexit__(self_, *exc):
+				return False
+
+		return _Contexto()
+
+
+def test_resolver_usuario_postgres_pelo_firebase_uid():
+	conexao = _ConexaoFalsa(linha={"user_id": 7})
+	assert asyncio.run(postgres.resolver_usuario_postgres(_PoolFalso(conexao), "uid-x")) == 7
+	assert "firebase_uid = $1" in conexao.consultas[0][0] and conexao.consultas[0][1] == ("uid-x",)
+
+
+def test_resolver_sem_pool_sem_linha_ou_com_erro_devolve_none():
+	assert asyncio.run(postgres.resolver_usuario_postgres(None, "uid-x")) is None
+	assert asyncio.run(postgres.resolver_usuario_postgres(_PoolFalso(_ConexaoFalsa()), "uid-x")) is None
+	com_erro = _PoolFalso(_ConexaoFalsa(erro=RuntimeError("banco fora")))
+	assert asyncio.run(postgres.resolver_usuario_postgres(com_erro, "uid-x")) is None

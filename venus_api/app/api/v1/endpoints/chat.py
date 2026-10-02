@@ -12,7 +12,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from venus_api.app.api.deps import get_fluxo_venus, get_session_id
+from venus_api.app.api.deps import get_fluxo_venus, get_pool, get_session_id
+from venus_api.app.infra.postgres import resolver_usuario_postgres
 from venus_api.app.observability import tracing
 from venus_api.app.schemas.chat import ChatRequest, ChatResponse
 
@@ -28,6 +29,7 @@ async def chat(
     requisicao: ChatRequest,
     fluxo: Any = Depends(get_fluxo_venus),
     usuario_id: str = Depends(get_session_id),
+    pool: Any = Depends(get_pool),
 ) -> ChatResponse:
     # Sem conversation_id, o id do próprio usuário serve de conversa contínua —
     # assim o histórico não se perde nem se o app ignorar o id devolvido.
@@ -38,8 +40,12 @@ async def chat(
         "mensagem_usuario": requisicao.mensagem,
         "usuario_id": usuario_id,
     }
-    if requisicao.usuario_id_postgres is not None:
-        estado["usuario_id_postgres"] = requisicao.usuario_id_postgres
+    if "usuario_id_postgres" in (requisicao.model_extra or {}):
+        # App antigo: o valor é ignorado — a identidade vem do token.
+        logger.warning("Campo usuario_id_postgres enviado pelo cliente foi ignorado (uid=%s)", usuario_id)
+    usuario_id_postgres = await resolver_usuario_postgres(pool, usuario_id)
+    if usuario_id_postgres is not None:
+        estado["usuario_id_postgres"] = usuario_id_postgres
 
     try:
         with tracing.atributos_do_trace(usuario_id, conversation_id):

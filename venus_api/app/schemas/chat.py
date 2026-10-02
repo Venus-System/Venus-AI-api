@@ -3,20 +3,22 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ChatRequest(BaseModel):
+    # Campos desconhecidos são aceitos e ignorados (ver o aviso em
+    # `endpoints/chat.py`): um app antigo que ainda mande
+    # `usuario_id_postgres` continua funcionando, só sem esse efeito.
+    model_config = ConfigDict(extra="allow")
+
     mensagem: str = Field(min_length=1)
     # Omitido na primeira mensagem: a API devolve o id usado e o app o reenvia
     # nas seguintes (contrato combinado com o time do app, pra dar pra evoluir
     # pra histórico de várias conversas sem quebrar o contrato).
     conversation_id: str | None = None
-    # Id numérico do usuário no Postgres, exigido pelas tools de alergia/score
-    # personalizado. Hoje o app não tem como fornecer (o usuário do Firebase
-    # não tem linha na tabela `users`); sem ele os especialistas não chamam
-    # essas tools em vez de inventar um número.
-    usuario_id_postgres: int | None = None
+    # Sem `usuario_id_postgres`: o cliente nunca informa identidade. A API
+    # descobre o id pelo uid do Firebase (`infra/postgres.py`).
 
 
 class ChatResponse(BaseModel):

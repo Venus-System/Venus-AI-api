@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import asyncpg
 
@@ -51,3 +52,24 @@ async def criar_pool() -> asyncpg.Pool | None:
             exc_info=True,
         )
         return None
+
+
+# Quem está no chat é o dono do token do Firebase: o id do Postgres sai daqui,
+# nunca do corpo da requisição (o app mandar "usuario_id_postgres: 5" deixava
+# qualquer usuário ler alergias, perfil e favoritos do usuário 5).
+_SQL_USUARIO_POR_FIREBASE_UID = "SELECT user_id FROM venus.users WHERE firebase_uid = $1"
+
+
+async def resolver_usuario_postgres(pool: Any, firebase_uid: str) -> int | None:
+    """`user_id` em `venus.users` do dono desse uid do Firebase, ou `None`
+    (sem pool, sem cadastro com esse uid ou banco fora do ar). `None` não é
+    erro: o SDK atende sem acesso aos dados da conta."""
+    if pool is None or not firebase_uid:
+        return None
+    try:
+        async with pool.acquire() as conexao:
+            linha = await conexao.fetchrow(_SQL_USUARIO_POR_FIREBASE_UID, firebase_uid)
+    except Exception:
+        logger.error("Não consegui resolver o usuário do Postgres pelo uid do Firebase.", exc_info=True)
+        return None
+    return int(linha["user_id"]) if linha else None

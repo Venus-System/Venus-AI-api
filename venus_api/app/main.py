@@ -17,6 +17,8 @@ from venus_api.app.observability.middleware import medir_requisicao
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     pool = await criar_pool()
+    # O /v1/chat usa o pool para descobrir o user_id pelo uid do Firebase.
+    app.state.pool = pool
     try:
         app.state.fluxo_venus = compilar_grafo_venus(
             checkpointer=criar_checkpointer(),
