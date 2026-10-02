@@ -37,3 +37,21 @@ def test_imagem_instala_so_producao_e_ci_instala_desenvolvimento():
 	assert "requirements-dev" not in dockerfile and "venus_api/requirements.txt" in dockerfile
 	ci = (RAIZ / ".github/workflows/ci.yaml").read_text(encoding="utf-8")
 	assert "venus_api/requirements-dev.txt" in ci
+
+
+def test_ci_instala_o_sdk_pelo_requirements_e_nunca_editavel():
+	# Um `pip install -e` de um checkout local do SDK esconderia a tag errada
+	# no requirements.txt (foi o que aconteceu com a v0.1.0).
+	for arquivo in (".github/workflows/ci.yaml", "venus_api/requirements.txt", "venus_api/requirements-dev.txt"):
+		texto = (RAIZ / arquivo).read_text(encoding="utf-8")
+		assert not re.search(r"(^|\s)(-e|--editable)\s", texto), arquivo
+
+
+def test_imagem_leva_o_modelo_do_fastembed_e_nao_usa_rede_para_ele():
+	# Sem o modelo na imagem, o índice local do FAQ baixa ~220 MB no startup
+	# (ou cai no EmbeddingsHash se não houver rede).
+	dockerfile = (RAIZ / "Dockerfile").read_text(encoding="utf-8")
+	estagio_de_build, estagio_final = dockerfile.split("\nFROM ")[1:3]
+	assert "get_embed_model()" in estagio_de_build  # baixado no build, não no startup
+	assert "ENV FASTEMBED_CACHE_PATH=" in estagio_final and "HF_HUB_OFFLINE=1" in estagio_final
+	assert "COPY --from=dependencias /modelos" in estagio_final

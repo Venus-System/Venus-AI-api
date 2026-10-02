@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     a2a_base_url: str | None = None
 
     # Pasta com os documentos do FAQ, indexados pro RAG do agente FAQ. Sem ela,
-    # usa `venus_api/data/faq/`, que já vai na imagem — ver `infra/rag.py`.
+    # usa os documentos empacotados no SDK instalado — ver `infra/rag.py`.
     faq_dir: str | None = None
 
     # Tools externas do agente FAQ (ver `infra/ferramentas_externas.py`), em
@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     # 12 chamadas de LLM). Ver `infra/limite_de_taxa.py`.
     chat_limite_por_minuto: int = 20
     chat_limite_por_dia: int = 300
+
+    # Onde a API está rodando: "desenvolvimento" (padrão), "qa" ou "producao".
+    # Em produção, cair num fallback que piora a resposta (ex.: o índice do
+    # FAQ sem embeddings semânticos) é log `error` em vez de `warning`.
+    # TODO(infra): definir AMBIENTE=producao na task definition do ECS de
+    # produção (e AMBIENTE=qa na de QA); a task definition não está neste
+    # repositório, e sem a variável o log fica no nível de desenvolvimento.
+    ambiente: str = "desenvolvimento"
 
 
 settings = Settings()

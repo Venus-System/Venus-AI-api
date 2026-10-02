@@ -82,11 +82,14 @@ def test_pergunta_de_faq_responde_200_com_conteudo_do_faq(grafo_real_com_llm_fal
 	resposta = cliente.post("/v1/chat", json={"mensagem": pergunta}, headers=auth_headers)
 
 	assert resposta.status_code == 200
-	# O texto da resposta é um trecho de algum documento do FAQ da API.
-	corpus = " ".join(
-		p.read_text(encoding="utf-8") for p in (Path(main.__file__).parents[1] / "data" / "faq").glob("*.md")
-	)
-	inicio_da_resposta = " ".join(resposta.json()["resposta"].split())[:60]
+	# O texto da resposta é um trecho de algum documento do FAQ (os do SDK).
+	# Desde o SDK 0.2.0 cada trecho começa com o caminho de títulos da seção
+	# ("Documento > Seção") e uma linha em branco: compara o corpo do trecho.
+	from venus_sdk.config.settings import FAQ_DIR
+
+	corpus = " ".join(p.read_text(encoding="utf-8") for p in Path(FAQ_DIR).glob("*.md"))
+	corpo_do_trecho = resposta.json()["resposta"].split("\n\n", 1)[-1]
+	inicio_da_resposta = " ".join(corpo_do_trecho.split())[:60]
 	assert inicio_da_resposta and inicio_da_resposta in " ".join(corpus.split())
 
 
