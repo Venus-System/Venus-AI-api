@@ -10,8 +10,13 @@ Na raiz do projeto, execute:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -r venus_api/requirements.txt
+python -m pip install -r venus_api/requirements-dev.txt
 ```
+
+`requirements.txt` tem só o que vai para produção (é o que a imagem Docker
+instala); `requirements-dev.txt` acrescenta `pytest` e `httpx`. O SDK é
+instalado por **tag** (`@v0.1.0`), não por branch — para atualizar, siga o
+processo de release do README do SDK e troque a tag.
 
 ## Testes
 
