@@ -36,7 +36,7 @@ flowchart TB
     postgres[("Postgres<br/>catálogo · usuários · favoritos<br/>alergias · google_oauth_tokens")]
     mongo[("MongoDB<br/>checkpointer · memória de longo prazo<br/>métricas · limites do chat")]
     qdrant[("Qdrant<br/>coleção do FAQ")]
-    faqlocal["Índice local do FAQ<br/>(FastEmbed, sem Qdrant)"]
+    faqlocal["Índice local do FAQ (sem Qdrant)<br/>FastEmbed; sem o modelo, EmbeddingsHash"]
     llms["LLMs com fallback<br/>Groq -> Mistral -> Gemini"]
     web["Busca web<br/>Tavily / DuckDuckGo"]
     gcal["Google Calendar"]
@@ -57,6 +57,7 @@ flowchart TB
     mem_out --> mongo
     esp --> postgres
     esp --> llms
+    ge -. "classificador (VENUS_GUARDRAIL_LLM, padrão ligado)" .-> llms
     rot --> llms
     juiz --> llms
     orq --> llms
@@ -73,8 +74,14 @@ flowchart TB
   resolvido pela API (`venus.users.firebase_uid`), nunca enviado pelo app. Dentro
   do grafo, as tools de dados da conta usam sempre o usuário da conversa.
 - **FAQ:** com `QDRANT_URL`, a coleção do Qdrant (alimentada por
-  `python -m venus_sdk.rag.faq_ingest`); sem ela, o índice local sobre
-  `venus_api/data/faq/`, com o mesmo modelo de embeddings.
+  `python -m venus_sdk.rag.faq_ingest`). Sem ela, o índice local sobre
+  `venus_api/data/faq/`: FastEmbed quando o extra `rag` está instalado e o
+  modelo foi baixado (a imagem Docker já traz o modelo); senão
+  `EmbeddingsHash` (busca por palavras, não semântica), com aviso no log —
+  `error` com `AMBIENTE=producao`.
+- **Guardrail de entrada:** regex sempre; o classificador LLM fica ligado por
+  padrão (`VENUS_GUARDRAIL_LLM=0` desliga) e custa uma chamada de LLM rápido
+  por mensagem que a regex não bloqueou.
 - **A2A:** servidor em `/a2a` (chave no header); conversas A2A ficam no
   namespace `a2a:` do checkpointer, separadas das do app.
 
@@ -96,7 +103,7 @@ sequenceDiagram
     U->>API: mensagem + Bearer token
     API->>API: valida token, limite por uid, resolve user_id
     API->>GE: estado inicial
-    alt mensagem bloqueada (injeção, flood, vazia)
+    alt mensagem bloqueada (injeção pela regex ou pelo classificador LLM, flood, vazia)
         GE->>GS: resposta padrão de bloqueio
     else liberada
         GE->>MEM: carrega o perfil de longo prazo

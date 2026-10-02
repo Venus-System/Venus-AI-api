@@ -39,15 +39,17 @@ elas parte das funções fica desligada.
 
 | Variável | Para quê | Sem ela |
 |---|---|---|
-| `GEMINI_API_KEY`, `GROQ_API_KEY` | Chaves dos modelos de linguagem | A Venus só devolve a mensagem de reserva |
+| `GROQ_API_KEY`, `MISTRAL_API_KEY`, `GEMINI_API_KEY` | Chaves dos modelos de linguagem (cadeia com fallback entre os provedores que tiverem chave) | Sem nenhuma, a Venus só devolve a mensagem de reserva |
 | `FIREBASE_CREDENTIALS` | Conta de serviço do Firebase: **caminho** do JSON (local) ou o **conteúdo** do JSON (nuvem) | O chat recusa todas as mensagens |
-| `MONGODB_URL` | Histórico de conversa, memória de longo prazo e métricas | Tudo em RAM, perdido ao reiniciar |
-| `DATABASE_URL` | Postgres do CRUD (produto, ingrediente, alergia) | Esses especialistas avisam que não conseguiram consultar |
+| `MONGODB_URL` | Histórico de conversa, memória de longo prazo, métricas e contador do limite de mensagens | Histórico e memória em RAM (perdidos ao reiniciar), métricas não são gravadas e o limite conta por instância |
+| `DATABASE_URL` | Postgres do CRUD (produto, ingrediente, alergia) e identificação do usuário pelo `uid` do Firebase (`venus.users.firebase_uid`) | Esses especialistas avisam que não conseguiram consultar, e a conversa fica sem os dados da conta (favoritos, alergias) |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | Rastreamento no Langfuse | Sem rastreamento |
 | `A2A_API_KEY`, `A2A_BASE_URL` | Servidor A2A em `/a2a` (chave no header `X-API-Key`; a URL pública da API, sem barra no fim) | Servidor A2A desligado — precisa das duas |
 | `FAQ_DIR` | Pasta com os documentos do FAQ usados no RAG do agente FAQ | Usa `venus_api/data/faq/`, que já vai na imagem |
-| `QDRANT_URL`, `QDRANT_API_KEY` | Coleção do FAQ no Qdrant (alimentada pela ingestão do SDK: `python -m venus_sdk.rag.faq_ingest`) | Índice local em memória sobre `FAQ_DIR`, com o mesmo modelo de embeddings (FastEmbed) |
-| `FASTEMBED_CACHE_PATH` | Pasta onde o modelo de embeddings (~220 MB) fica guardado | O modelo é baixado de novo a cada container novo |
+| `QDRANT_URL`, `QDRANT_API_KEY` | Coleção do FAQ no Qdrant (alimentada pela ingestão do SDK: `python -m venus_sdk.rag.faq_ingest`) | Índice local em memória sobre `FAQ_DIR`: **FastEmbed** quando o extra `rag` está instalado e o modelo foi baixado (na imagem Docker ele já vem); senão **`EmbeddingsHash`** (busca por palavras, não semântica), com aviso no log. O log do startup diz qual subiu (`Índice do FAQ: IndiceRAG/FastEmbed`) |
+| `FASTEMBED_CACHE_PATH` | Pasta do modelo de embeddings (~220 MB). Na imagem Docker já vem `/modelos/fastembed`, com o modelo baixado no build (e `HF_HUB_OFFLINE=1`) | Fora da imagem: o modelo é baixado no primeiro uso, o que precisa de rede; sem rede, o índice local cai no `EmbeddingsHash` |
+| `VENUS_GUARDRAIL_LLM` | Segunda camada do guardrail de entrada: um LLM rápido classifica o que a regex deixou passar. **Ligada por padrão**; `0` desliga. **Custo: uma chamada extra de LLM rápido por mensagem** que a regex não bloqueou | — (ligada). Se o LLM falhar, a mensagem passa |
+| `AMBIENTE` | `desenvolvimento` (padrão), `qa` ou `producao`. Em `producao`, o índice do FAQ com `EmbeddingsHash` é log `error` | Tratado como `desenvolvimento` |
 | `TAVILY_API_KEY` | Busca na web do agente FAQ pela Tavily | Usa o DuckDuckGo |
 | `MCP_SERVERS` | JSON com servidores MCP externos, cujas tools o agente FAQ pode usar | Sem tools MCP externas |
 | `CHAT_LIMITE_POR_MINUTO`, `CHAT_LIMITE_POR_DIA` | Máximo de mensagens por usuário no `/v1/chat` (padrão 20/min e 300/dia); acima disso, `429` com `Retry-After`. Com `MONGODB_URL` o contador é compartilhado entre instâncias; se o Mongo cair, a API continua no ar e conta em memória por instância (log `error`) | — |

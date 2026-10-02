@@ -59,5 +59,13 @@ class Settings(BaseSettings):
     chat_limite_por_minuto: int = 20
     chat_limite_por_dia: int = 300
 
+    # Onde a API está rodando: "desenvolvimento" (padrão), "qa" ou "producao".
+    # Em produção, cair num fallback que piora a resposta (ex.: o índice do
+    # FAQ sem embeddings semânticos) é log `error` em vez de `warning`.
+    # TODO(infra): definir AMBIENTE=producao na task definition do ECS de
+    # produção (e AMBIENTE=qa na de QA); a task definition não está neste
+    # repositório, e sem a variável o log fica no nível de desenvolvimento.
+    ambiente: str = "desenvolvimento"
+
 
 settings = Settings()
