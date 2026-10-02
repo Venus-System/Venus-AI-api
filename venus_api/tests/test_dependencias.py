@@ -37,3 +37,11 @@ def test_imagem_instala_so_producao_e_ci_instala_desenvolvimento():
 	assert "requirements-dev" not in dockerfile and "venus_api/requirements.txt" in dockerfile
 	ci = (RAIZ / ".github/workflows/ci.yaml").read_text(encoding="utf-8")
 	assert "venus_api/requirements-dev.txt" in ci
+
+
+def test_ci_instala_o_sdk_pelo_requirements_e_nunca_editavel():
+	# Um `pip install -e` de um checkout local do SDK esconderia a tag errada
+	# no requirements.txt (foi o que aconteceu com a v0.1.0).
+	for arquivo in (".github/workflows/ci.yaml", "venus_api/requirements.txt", "venus_api/requirements-dev.txt"):
+		texto = (RAIZ / arquivo).read_text(encoding="utf-8")
+		assert not re.search(r"(^|\s)(-e|--editable)\s", texto), arquivo
