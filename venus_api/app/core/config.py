@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     a2a_base_url: str | None = None
 
     # Pasta com os documentos do FAQ, indexados pro RAG do agente FAQ. Sem ela,
-    # usa `venus_api/data/faq/`, que já vai na imagem — ver `infra/rag.py`.
+    # usa os documentos empacotados no SDK instalado — ver `infra/rag.py`.
     faq_dir: str | None = None
 
     # Tools externas do agente FAQ (ver `infra/ferramentas_externas.py`), em

@@ -3,8 +3,8 @@ from venus_api.app.infra import rag
 
 
 def test_indice_padrao_carrega_documentos_do_faq(monkeypatch):
-	"""Sem FAQ_DIR, usa `venus_api/data/faq/` — que precisa existir e ter
-	conteúdo, senão o agente FAQ fica sem ter onde buscar."""
+	"""Sem FAQ_DIR, usa os documentos empacotados no SDK — que precisam
+	existir e ter conteúdo, senão o agente FAQ fica sem ter onde buscar."""
 	monkeypatch.setattr(settings, "faq_dir", None)
 
 	indice = rag.criar_indice_faq()
@@ -88,3 +88,33 @@ def test_log_do_qdrant(monkeypatch, caplog):
 
 	rag.criar_indice_faq()
 	assert any("IndiceQdrant" in m for m in _mensagens(caplog, logging.INFO))
+
+
+# --- Revisão técnica 2, item 5: o FAQ vem do SDK, sem cópia na API ------------
+
+from pathlib import Path  # noqa: E402
+
+from venus_sdk.config.settings import FAQ_DIR as FAQ_DO_SDK  # noqa: E402
+
+
+def test_indice_sem_faq_dir_usa_os_documentos_empacotados_no_sdk(monkeypatch):
+	pastas = []
+	monkeypatch.setattr(settings, "faq_dir", None)
+	monkeypatch.setattr(rag, "criar_indice_do_sdk", lambda pasta: pastas.append(Path(pasta)) or object())
+
+	rag.criar_indice_faq()
+	assert pastas == [Path(FAQ_DO_SDK)]
+
+
+def test_api_nao_tem_mais_copia_dos_documentos_do_faq():
+	raiz_da_api = Path(rag.__file__).resolve().parents[2]
+	assert not (raiz_da_api / "data" / "faq").exists()
+	assert sorted(Path(FAQ_DO_SDK).glob("*.md")), "o SDK instalado precisa trazer os .md do FAQ"
+
+
+def test_faq_dir_da_api_continua_sobrepondo(monkeypatch, tmp_path):
+	(tmp_path / "proprio.md").write_text("# Próprio\n\nConteúdo da pasta escolhida.", encoding="utf-8")
+	monkeypatch.setattr(settings, "faq_dir", str(tmp_path))
+
+	achados = rag.criar_indice_faq().buscar("conteúdo da pasta escolhida", k=1, score_minimo=0)
+	assert achados[0]["fonte"] == "proprio.md"

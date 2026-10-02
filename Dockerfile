@@ -29,6 +29,8 @@ COPY --from=dependencias /modelos /modelos
 # Hugging Face (HF_HUB_OFFLINE).
 ENV FASTEMBED_CACHE_PATH=/modelos/fastembed \
     HF_HUB_OFFLINE=1
+# Os documentos do FAQ vêm dentro do SDK instalado (package data), não de
+# uma pasta da API.
 COPY venus_api/ venus_api/
 
 RUN addgroup --system venus && adduser --system --ingroup venus venus

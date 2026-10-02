@@ -74,8 +74,9 @@ flowchart TB
   resolvido pela API (`venus.users.firebase_uid`), nunca enviado pelo app. Dentro
   do grafo, as tools de dados da conta usam sempre o usuário da conversa.
 - **FAQ:** com `QDRANT_URL`, a coleção do Qdrant (alimentada por
-  `python -m venus_sdk.rag.faq_ingest`). Sem ela, o índice local sobre
-  `venus_api/data/faq/`: FastEmbed quando o extra `rag` está instalado e o
+  `python -m venus_sdk.rag.faq_ingest`). Sem ela, o índice local sobre os
+  documentos empacotados no SDK (`venus_sdk/data/faq`, a única cópia; `FAQ_DIR`
+  aponta para outra pasta): FastEmbed quando o extra `rag` está instalado e o
   modelo foi baixado (a imagem Docker já traz o modelo); senão
   `EmbeddingsHash` (busca por palavras, não semântica), com aviso no log —
   `error` com `AMBIENTE=producao`.
