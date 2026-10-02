@@ -6,6 +6,7 @@ from venus_sdk.flows.venus_flow import compilar_grafo_venus
 from venus_api.app.api.a2a import ROTA_A2A, A2ADinamico, criar_app_a2a
 from venus_api.app.api.v1.router import router as v1_router
 from venus_api.app.infra.checkpointer import criar_checkpointer
+from venus_api.app.infra.ferramentas_externas import carregar_tools_faq_extras
 from venus_api.app.infra.postgres import criar_pool
 from venus_api.app.infra.rag import criar_indice_faq
 from venus_api.app.infra.store import criar_store
@@ -22,6 +23,7 @@ async def lifespan(app: FastAPI):
             store=criar_store(),
             pool=pool,
             indice_rag=criar_indice_faq(),
+            tools_faq_extras=await carregar_tools_faq_extras(),
         )
         app.state.a2a_app = criar_app_a2a(app.state.fluxo_venus)
         yield

@@ -47,5 +47,12 @@ class Settings(BaseSettings):
     # usa `venus_api/data/faq/`, que já vai na imagem — ver `infra/rag.py`.
     faq_dir: str | None = None
 
+    # Tools externas do agente FAQ (ver `infra/ferramentas_externas.py`), em
+    # JSON: MCP_SERVERS no formato do MultiServerMCPClient e
+    # A2A_AGENTES_EXTERNOS como {"nome": "http://host:porta"}. Sem elas, o FAQ
+    # usa só o índice do RAG e a busca na web.
+    mcp_servers: str | None = None
+    a2a_agentes_externos: str | None = None
+
 
 settings = Settings()
