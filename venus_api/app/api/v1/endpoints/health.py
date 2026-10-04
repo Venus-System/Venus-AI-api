@@ -45,4 +45,11 @@ def health_detalhado(request: Request, x_api_key: str | None = Header(default=No
 		# Contadores por processo (por task do ECS): chamadas, falhas,
 		# fail-opens e o disjuntor do classificador LLM do guardrail.
 		"guardrail_llm": estatisticas_guardrail_llm(),
+		# O índice do FAQ é construído em segundo plano depois do startup.
+		"faq": _estado_do_faq(request),
 	}
+
+
+def _estado_do_faq(request: Request) -> dict[str, Any]:
+	indice = getattr(request.app.state, "indice_faq", None)
+	return indice.estado() if indice is not None else {"pronto": False, "tipo": None}

@@ -87,6 +87,10 @@ flowchart TB
 - **Identidade:** o `uid` vem do token do Firebase; o `user_id` do Postgres é
   resolvido pela API (`venus.users.firebase_uid`), nunca enviado pelo app. Dentro
   do grafo, as tools de dados da conta usam sempre o usuário da conversa.
+- **Startup:** o índice do FAQ é construído em segundo plano, depois de a API
+  já responder ao `/v1/health`; até ficar pronto, perguntas de FAQ recebem a
+  mensagem de indisponibilidade (200). O `/v1/health/detalhado` mostra
+  `faq.pronto` e o tipo do índice.
 - **FAQ:** com `QDRANT_URL`, a coleção do Qdrant (alimentada por
   `python -m venus_sdk.rag.faq_ingest`). Sem ela, o índice local sobre os
   documentos empacotados no SDK (`venus_sdk/data/faq`, a única cópia; `FAQ_DIR`

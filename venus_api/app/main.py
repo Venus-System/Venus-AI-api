@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,7 +11,7 @@ from venus_api.app.infra.ferramentas_externas import carregar_tools_faq_extras
 from venus_api.app.infra.ferramentas_rotina import montar_tools_rotina_extras
 from venus_api.app.infra.limite_de_taxa import criar_limitador
 from venus_api.app.infra.postgres import criar_pool
-from venus_api.app.infra.rag import criar_indice_faq
+from venus_api.app.infra.rag import IndiceDoFaqEmSegundoPlano
 from venus_api.app.infra.store import criar_store
 from venus_api.app.observability import tracing
 from venus_api.app.observability.middleware import medir_requisicao
@@ -22,18 +23,24 @@ async def lifespan(app: FastAPI):
     # O /v1/chat usa o pool para descobrir o user_id pelo uid do Firebase.
     app.state.pool = pool
     app.state.limitador = criar_limitador()
+    # O índice do FAQ fica pronto depois: o startup (e o health check do ECS)
+    # não espera o modelo de embeddings. Ver infra/rag.py.
+    indice_faq = IndiceDoFaqEmSegundoPlano()
+    app.state.indice_faq = indice_faq
+    tarefa_do_faq = asyncio.create_task(indice_faq.construir())
     try:
         app.state.fluxo_venus = compilar_grafo_venus(
             checkpointer=criar_checkpointer(),
             store=criar_store(),
             pool=pool,
-            indice_rag=criar_indice_faq(),
+            indice_rag=indice_faq,
             tools_faq_extras=await carregar_tools_faq_extras(),
             tools_rotina_extras=montar_tools_rotina_extras(pool),
         )
         app.state.a2a_app = criar_app_a2a(app.state.fluxo_venus)
         yield
     finally:
+        tarefa_do_faq.cancel()
         if pool is not None:
             await pool.close()
         await _fechar_neo4j()

@@ -4,6 +4,7 @@ pergunta de FAQ não pode virar 502."""
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +74,12 @@ def grafo_real_com_llm_falso(monkeypatch):
 	                    lambda: LLMRoteirizado(roteiro=[_orquestrador_repete_o_especialista]))
 	monkeypatch.setattr(settings, "faq_dir", None)
 	with TestClient(main.app) as cliente:
+		# Desde a revisão técnica 3 o índice é construído em segundo plano:
+		# este teste é sobre a resposta com o índice pronto.
+		limite = time.monotonic() + 30
+		while not main.app.state.indice_faq.pronto and time.monotonic() < limite:
+			time.sleep(0.05)
+		assert main.app.state.indice_faq.pronto
 		yield cliente, pergunta
 
 
