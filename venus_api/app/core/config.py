@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # 12 chamadas de LLM). Ver `infra/limite_de_taxa.py`.
     chat_limite_por_minuto: int = 20
     chat_limite_por_dia: int = 300
+    # Com o Mongo fora do ar, quanto tempo o limitador conta só em memória
+    # antes de tentar o Mongo de novo (disjuntor).
+    chat_limite_mongo_pausa_segundos: int = 30
 
     # Onde a API está rodando: "desenvolvimento" (padrão), "qa" ou "producao".
     # Em produção, cair num fallback que piora a resposta (ex.: o índice do
