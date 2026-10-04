@@ -9,6 +9,11 @@
 # documento por uid e janela, apagado sozinho pelo índice TTL). Sem Mongo, cai
 # num contador em memória que só vale por instância: com várias tasks no ECS,
 # cada uma conta separado e o limite real vira limite x instâncias.
+#
+# O Mongo fora do ar nunca derruba a API, como já acontece com a memória e
+# as métricas: o startup não conecta, o índice é criado na primeira mensagem
+# (e tentado de novo se falhar), e uma falha na contagem cai no contador em
+# memória daquela instância.
 
 from __future__ import annotations
 
@@ -25,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 COLECAO_LIMITES = "limites_chat"
 _JANELAS = (("minuto", 60), ("dia", 86_400))
+_TIMEOUT_MONGO_MS = 2000
 
 
 def _limite(janela: str) -> int:
@@ -68,15 +74,39 @@ class LimitadorMongo:
 
     def __init__(self, colecao: Any) -> None:
         self._colecao = colecao
-        # O Mongo apaga cada documento quando a janela dele acaba.
-        self._colecao.create_index("expira_em", expireAfterSeconds=0)
+        self._indice_criado = False
+        # Decisão: com o Mongo fora do ar, conta em memória (limite por
+        # instância) em vez de devolver 500 ou liberar sem limite nenhum.
+        # Mantém alguma proteção de custo sem bloquear usuários por falha de
+        # infraestrutura.
+        self._reserva = LimitadorEmMemoria()
 
     async def registrar(self, uid: str) -> int | None:
-        return await asyncio.to_thread(self._registrar, uid)
+        try:
+            return await asyncio.to_thread(self._registrar, uid)
+        except Exception:
+            logger.error(
+                "Limite de mensagens: Mongo indisponível — contando em memória nesta instância.",
+                exc_info=True,
+            )
+            return await self._reserva.registrar(uid)
+
+    def _garantir_indice(self) -> None:
+        """O Mongo apaga cada documento quando a janela dele acaba. Criado na
+        primeira mensagem, não no startup; se falhar, tenta na seguinte."""
+        if self._indice_criado:
+            return
+        try:
+            self._colecao.create_index("expira_em", expireAfterSeconds=0)
+            self._indice_criado = True
+        except Exception:
+            logger.warning("Limite de mensagens: não deu para criar o índice TTL; tento de novo na próxima.",
+                           exc_info=True)
 
     def _registrar(self, uid: str) -> int | None:
         from pymongo import ReturnDocument
 
+        self._garantir_indice()
         agora = time.time()
         espera = None
         for janela, segundos in _JANELAS:
@@ -102,4 +132,9 @@ def criar_limitador() -> LimitadorEmMemoria | LimitadorMongo:
         return LimitadorEmMemoria()
     from pymongo import MongoClient
 
-    return LimitadorMongo(MongoClient(settings.mongodb_url)["venus"][COLECAO_LIMITES])
+    # connect=False: o startup não espera o Mongo; a conexão abre na primeira
+    # mensagem, e se falhar o limitador cai no contador em memória. Timeout
+    # curto: com o Mongo fora do ar, cada mensagem esperaria os 30 s padrão
+    # do pymongo antes de cair no fallback.
+    cliente = MongoClient(settings.mongodb_url, connect=False, serverSelectionTimeoutMS=_TIMEOUT_MONGO_MS)
+    return LimitadorMongo(cliente["venus"][COLECAO_LIMITES])

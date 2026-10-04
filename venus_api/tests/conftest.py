@@ -133,3 +133,8 @@ def auth_headers() -> dict[str, str]:
 # O índice local do FAQ usa o EmbeddingsHash nos testes (sem baixar o modelo
 # do FastEmbed), mesmo com o extra `rag` instalado.
 os.environ.setdefault("VENUS_EMBEDDINGS_LOCAIS", "hash")
+
+# Desde o SDK 0.2.0 o classificador LLM do guardrail fica ligado por padrão;
+# nos testes ele chamaria o LLM de verdade (ou consumiria as respostas
+# roteirizadas). Desligado aqui; produção usa o padrão.
+os.environ.setdefault("VENUS_GUARDRAIL_LLM", "0")
