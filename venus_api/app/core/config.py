@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     a2a_api_key: str | None = None
     a2a_base_url: str | None = None
 
+    # Chave do /v1/health/detalhado (header X-API-Key). Sem ela, vale a do
+    # A2A; sem nenhuma, o endpoint responde 404 — nunca fica público.
+    health_api_key: str | None = None
+
     # Pasta com os documentos do FAQ, indexados pro RAG do agente FAQ. Sem ela,
     # usa os documentos empacotados no SDK instalado — ver `infra/rag.py`.
     faq_dir: str | None = None

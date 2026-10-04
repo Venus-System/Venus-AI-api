@@ -53,6 +53,7 @@ elas parte das funções fica desligada.
 | `TAVILY_API_KEY` | Busca na web do agente FAQ pela Tavily | Usa o DuckDuckGo |
 | `MCP_SERVERS` | JSON com servidores MCP externos, cujas tools o agente FAQ pode usar | Sem tools MCP externas |
 | `CHAT_LIMITE_POR_MINUTO`, `CHAT_LIMITE_POR_DIA` | Máximo de mensagens por usuário no `/v1/chat` (padrão 20/min e 300/dia); acima disso, `429` com `Retry-After`. Com `MONGODB_URL` o contador é compartilhado entre instâncias; se o Mongo cair, a API continua no ar e conta em memória por instância (log `error`) | — |
+| `HEALTH_API_KEY` | Chave (header `X-API-Key`) do `GET /v1/health/detalhado`, que mostra os contadores do classificador do guardrail (chamadas, falhas, fail-opens, disjuntor) e o estado do índice do FAQ. Sem ela, vale a `A2A_API_KEY` | Sem nenhuma das duas, o detalhado responde 404; o `/v1/health` simples continua público |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Cliente OAuth do Google (Google Console) para trocar o `code` do app pelo token e renovar o acesso. Lidas pelo SDK direto do ambiente | Google Calendar desligado: o agente de Rotina não recebe as tools e os endpoints de integração respondem 503 |
 | `GOOGLE_TOKEN_ENCRYPTION_KEY` | Chave Fernet que cifra o `refresh_token` no Postgres. Gere com `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Trocar a chave invalida os tokens já salvos | Google Calendar desligado |
 | `GOOGLE_REDIRECT_URIS_PERMITIDAS` | Redirect URIs aceitas no `POST /v1/integracoes/google-calendar`, separadas por vírgula (as mesmas do Google Console) | Nenhuma é aceita (400) |
@@ -114,4 +115,4 @@ O `--env-file` é necessário: o SDK lê as chaves dos modelos no momento em que
 docker build -t venus-api .
 ```
 
-A imagem escuta na porta `8080`; o health check é `GET /v1/health`.
+A imagem escuta na porta `8080`; o health check é `GET /v1/health` (público, responde na hora). O `GET /v1/health/detalhado` exige `X-API-Key`.
