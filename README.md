@@ -53,7 +53,51 @@ elas parte das funções fica desligada.
 | `TAVILY_API_KEY` | Busca na web do agente FAQ pela Tavily | Usa o DuckDuckGo |
 | `MCP_SERVERS` | JSON com servidores MCP externos, cujas tools o agente FAQ pode usar | Sem tools MCP externas |
 | `CHAT_LIMITE_POR_MINUTO`, `CHAT_LIMITE_POR_DIA` | Máximo de mensagens por usuário no `/v1/chat` (padrão 20/min e 300/dia); acima disso, `429` com `Retry-After`. Com `MONGODB_URL` o contador é compartilhado entre instâncias; se o Mongo cair, a API continua no ar e conta em memória por instância (log `error`) | — |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Cliente OAuth do Google (Google Console) para trocar o `code` do app pelo token e renovar o acesso. Lidas pelo SDK direto do ambiente | Google Calendar desligado: o agente de Rotina não recebe as tools e os endpoints de integração respondem 503 |
+| `GOOGLE_TOKEN_ENCRYPTION_KEY` | Chave Fernet que cifra o `refresh_token` no Postgres. Gere com `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Trocar a chave invalida os tokens já salvos | Google Calendar desligado |
+| `GOOGLE_REDIRECT_URIS_PERMITIDAS` | Redirect URIs aceitas no `POST /v1/integracoes/google-calendar`, separadas por vírgula (as mesmas do Google Console) | Nenhuma é aceita (400) |
+| `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Neo4j do check-up da rotina (conflitos de ativos, ordem, repetidos) | Check-up desligado: a tool nem é registrada |
 | `A2A_AGENTES_EXTERNOS` | JSON `{"nome": "http://host:porta"}` de agentes A2A que o FAQ pode consultar | Sem consulta a agentes externos |
+
+## Google Calendar: conexão pelo app
+
+A Venus consulta a agenda e agenda a rotina do usuário (sempre com
+confirmação) quando ele conecta o Google Calendar. O app faz o OAuth e a API
+guarda o acesso:
+
+1. O app gera um `code_verifier` e o `code_challenge` (PKCE, S256) e abre o
+   consentimento do Google com `client_id`, `redirect_uri` (uma das
+   cadastradas em `GOOGLE_REDIRECT_URIS_PERMITIDAS`),
+   `scope="https://www.googleapis.com/auth/calendar.freebusy https://www.googleapis.com/auth/calendar.events"`,
+   `access_type=offline` e `prompt=consent` (sem esses dois, o Google não
+   devolve `refresh_token`).
+2. O Google redireciona para o app com `code`.
+3. O app chama `POST /v1/integracoes/google-calendar` com o ID token do
+   Firebase e `{"code": ..., "redirect_uri": ..., "code_verifier": ...}`.
+   A API troca o `code`, confere o escopo e salva o `refresh_token` cifrado.
+   Respostas: `204` conectado; `400` `redirect_uri` fora da lista ou `code`
+   inválido; `401` sem token; `409` login sem cadastro no Venus; `422`
+   permissão sem criar eventos (reconectar); `429` muitas tentativas; `503`
+   integração não configurada.
+4. `GET /v1/integracoes/google-calendar` devolve só `{"conectado": bool}`.
+   `DELETE` revoga o acesso no Google e apaga o token (`204`, mesmo se a
+   revogação falhar).
+
+A identidade vem sempre do token: `user_id` ou `usuario_id_postgres` no corpo
+são ignorados.
+
+## Check-up da rotina: sincronizar o Neo4j
+
+O check-up consulta um Neo4j que é cópia do catálogo e dos favoritos do
+Postgres mais as regras de ativos empacotadas no SDK. Rode a sincronização
+**depois de mudar o catálogo de produtos ou de atualizar o SDK com regras
+novas**: Actions > **Sincronizar Neo4j** > Run workflow, escolhendo o
+ambiente. Ela usa os segredos `DATABASE_URL`, `NEO4J_URI`, `NEO4J_USER` e
+`NEO4J_PASSWORD` do ambiente e não é agendada. Localmente:
+
+```powershell
+python -m venus_sdk.checkup.sincronizar
+```
 
 ## Subir a API
 

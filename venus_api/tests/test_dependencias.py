@@ -55,3 +55,17 @@ def test_imagem_leva_o_modelo_do_fastembed_e_nao_usa_rede_para_ele():
 	assert "get_embed_model()" in estagio_de_build  # baixado no build, não no startup
 	assert "ENV FASTEMBED_CACHE_PATH=" in estagio_final and "HF_HUB_OFFLINE=1" in estagio_final
 	assert "COPY --from=dependencias /modelos" in estagio_final
+
+
+def test_sdk_instalado_com_os_extras_do_calendar_e_do_neo4j():
+	[sdk] = [linha for linha in _linhas("venus_api/requirements.txt") if "Venus-AI-Sdk" in linha]
+	extras = set(sdk.split("[", 1)[1].split("]", 1)[0].split(","))
+	assert {"google_calendar", "neo4j"} <= extras
+
+
+def test_sincronizacao_do_neo4j_so_roda_a_mao():
+	workflow = (RAIZ / ".github/workflows/sincronizar-neo4j.yaml").read_text(encoding="utf-8")
+	assert "workflow_dispatch" in workflow and "schedule" not in workflow
+	assert "python -m venus_sdk.checkup.sincronizar" in workflow
+	for segredo in ("DATABASE_URL", "NEO4J_URI", "NEO4J_USER", "NEO4J_PASSWORD"):
+		assert f"secrets.{segredo}" in workflow

@@ -15,6 +15,7 @@ flowchart TB
     subgraph ecs["API FastAPI — AWS ECS"]
         chat["POST /v1/chat<br/>token -> uid<br/>limite por uid (429)<br/>uid -> user_id (Postgres)"]
         a2a_srv["/a2a — servidor A2A<br/>(X-API-Key)"]
+        gcal_api["/v1/integracoes/google-calendar<br/>POST conectar · GET estado · DELETE<br/>token -> uid -> user_id"]
         metricas["Middleware de métricas"]
 
         subgraph grafo["Grafo LangGraph (SDK venus_sdk)"]
@@ -39,13 +40,18 @@ flowchart TB
     faqlocal["Índice local do FAQ (sem Qdrant)<br/>FastEmbed; sem o modelo, EmbeddingsHash"]
     llms["LLMs com fallback<br/>Groq -> Mistral -> Gemini"]
     web["Busca web<br/>Tavily / DuckDuckGo"]
-    gcal["Google Calendar"]
+    gcal["Google Calendar<br/>(OAuth + API de agenda)"]
+    neo4j[("Neo4j<br/>check-up da rotina")]
+    sync["Workflow manual<br/>Sincronizar Neo4j"]
     mcp_ext["Servidores MCP externos"]
     a2a_ext["Agentes A2A externos"]
     langfuse["Langfuse<br/>(rastreamento)"]
 
     app -- "login" --> firebase
     app -- "Bearer token" --> chat
+    app -- "code do OAuth (PKCE)" --> gcal_api
+    gcal_api -- "troca o code / revoga" --> gcal
+    gcal_api -- "refresh_token cifrado" --> postgres
     externo --> a2a_srv
     chat --> ge
     a2a_srv --> ge
@@ -66,10 +72,18 @@ flowchart TB
     esp --> faqlocal
     esp -. "MCP_SERVERS" .-> mcp_ext
     esp -. "A2A_AGENTES_EXTERNOS" .-> a2a_ext
-    esp -. "SDK pronto; ainda não ligado na API" .-> gcal
+    esp -. "GOOGLE_* (rotina: consultar e agendar)" .-> gcal
+    esp -. "NEO4J_URI (rotina: check-up)" .-> neo4j
+    sync -- "postgres + regras do SDK" --> neo4j
     grafo -. "LANGFUSE_*" .-> langfuse
 ```
 
+- **Rotina:** com `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` e
+  `GOOGLE_TOKEN_ENCRYPTION_KEY` (e o Postgres), o agente de Rotina consulta a
+  agenda e agenda a rotina com confirmação; com `NEO4J_URI`, faz o check-up da
+  rotina. Sem as variáveis, as tools nem são registradas e o startup loga o
+  motivo. O Neo4j é uma cópia do Postgres + regras do SDK, refeita pelo
+  workflow manual "Sincronizar Neo4j".
 - **Identidade:** o `uid` vem do token do Firebase; o `user_id` do Postgres é
   resolvido pela API (`venus.users.firebase_uid`), nunca enviado pelo app. Dentro
   do grafo, as tools de dados da conta usam sempre o usuário da conversa.

@@ -67,5 +67,13 @@ class Settings(BaseSettings):
     # repositório, e sem a variável o log fica no nível de desenvolvimento.
     ambiente: str = "desenvolvimento"
 
+    # Google Calendar (`/v1/integracoes/google-calendar`): redirect URIs aceitas
+    # na troca do `code`, separadas por vírgula — as mesmas cadastradas no
+    # Google Console para o app. Sem a lista, nenhuma é aceita (400). As
+    # credenciais (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+    # GOOGLE_TOKEN_ENCRYPTION_KEY) e NEO4J_* são lidas pelo SDK direto do
+    # ambiente do processo.
+    google_redirect_uris_permitidas: str | None = None
+
 
 settings = Settings()

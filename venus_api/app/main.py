@@ -7,6 +7,7 @@ from venus_api.app.api.a2a import ROTA_A2A, A2ADinamico, criar_app_a2a
 from venus_api.app.api.v1.router import router as v1_router
 from venus_api.app.infra.checkpointer import criar_checkpointer
 from venus_api.app.infra.ferramentas_externas import carregar_tools_faq_extras
+from venus_api.app.infra.ferramentas_rotina import montar_tools_rotina_extras
 from venus_api.app.infra.limite_de_taxa import criar_limitador
 from venus_api.app.infra.postgres import criar_pool
 from venus_api.app.infra.rag import criar_indice_faq
@@ -28,17 +29,28 @@ async def lifespan(app: FastAPI):
             pool=pool,
             indice_rag=criar_indice_faq(),
             tools_faq_extras=await carregar_tools_faq_extras(),
+            tools_rotina_extras=montar_tools_rotina_extras(pool),
         )
         app.state.a2a_app = criar_app_a2a(app.state.fluxo_venus)
         yield
     finally:
         if pool is not None:
             await pool.close()
+        await _fechar_neo4j()
         # O Langfuse envia os traces em lote, em segundo plano. Sem isso, o que
         # ainda não tinha sido enviado se perde quando a API desliga.
         langfuse = tracing.get_langfuse()
         if langfuse is not None:
             langfuse.shutdown()
+
+
+async def _fechar_neo4j() -> None:
+    """O driver do Neo4j do check-up é criado no primeiro uso (lru_cache do
+    SDK); se foi criado, fecha as conexões no desligamento."""
+    from venus_sdk.integrations.grafo_neo4j import get_neo4j_driver
+
+    if get_neo4j_driver.cache_info().currsize:
+        await get_neo4j_driver().close()
 
 
 app = FastAPI(title="Venus AI API", lifespan=lifespan)
