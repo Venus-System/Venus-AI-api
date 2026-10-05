@@ -64,6 +64,9 @@ def sem_a2a_real(monkeypatch):
 	no `.env` da máquina. Os testes de A2A o ligam de propósito."""
 	monkeypatch.setattr(settings, "a2a_api_key", None)
 	monkeypatch.setattr(settings, "a2a_base_url", None)
+	monkeypatch.setattr(settings, "health_api_key", None)
+	# Sem a chave da Tavily do .env da máquina: nenhum teste abre o MCP de verdade.
+	monkeypatch.setattr(settings, "tavily_api_key", None)
 
 
 @pytest.fixture(autouse=True)

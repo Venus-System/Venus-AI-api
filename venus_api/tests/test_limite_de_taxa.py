@@ -64,10 +64,36 @@ class _ColecaoFalsa:
 		self.indices.append((campo, opcoes))
 
 	def find_one_and_update(self, filtro, atualizacao, upsert, return_document):
+		self.chamadas = getattr(self, "chamadas", 0) + 1
+		if isinstance(atualizacao, list):  # pipeline de update (um documento por uid)
+			antes = self.documentos.get(filtro["_id"], {"_id": filtro["_id"]})
+			depois = dict(antes)
+			for estagio in atualizacao:
+				depois.update({campo: _avaliar(expressao, antes) for campo, expressao in estagio["$set"].items()})
+			self.documentos[filtro["_id"]] = depois
+			return depois
 		documento = self.documentos.setdefault(filtro["_id"], {"_id": filtro["_id"], "contador": 0,
 		                                                       **atualizacao["$setOnInsert"]})
 		documento["contador"] += atualizacao["$inc"]["contador"]
 		return documento
+
+
+def _avaliar(expressao, documento):
+	"""O pedaço da linguagem de agregação que o limitador usa: "$campo",
+	$cond, $eq, $add e valores literais."""
+	if isinstance(expressao, str) and expressao.startswith("$"):
+		return documento.get(expressao[1:])
+	if isinstance(expressao, dict) and len(expressao) == 1:
+		[(operador, argumentos)] = expressao.items()
+		if operador == "$cond":  # como no Mongo, só o ramo escolhido é avaliado
+			condicao, se_sim, se_nao = argumentos
+			return _avaliar(se_sim if _avaliar(condicao, documento) else se_nao, documento)
+		valores = [_avaliar(argumento, documento) for argumento in argumentos]
+		if operador == "$eq":
+			return valores[0] == valores[1]
+		if operador == "$add":
+			return sum(valores)
+	return expressao
 
 
 def test_limitador_mongo_conta_por_janela_e_expira_sozinho(monkeypatch):
@@ -153,3 +179,105 @@ def test_criar_limitador_nao_conecta_no_mongo_no_startup(monkeypatch):
 	limitador = limite_de_taxa.criar_limitador()
 	assert isinstance(limitador, limite_de_taxa.LimitadorMongo)
 	assert time.monotonic() - inicio < 2
+
+
+# --- Revisão técnica 3, item 3: disjuntor e uma ida só ao Mongo ---------------
+
+
+class _Relogio:
+	def __init__(self):
+		self.agora = 500.0
+
+	def __call__(self):
+		return self.agora
+
+
+class _ColecaoLentaQueFalha(_ColecaoFalsa):
+	"""Mongo fora do ar: cada operação demora (o timeout) e falha."""
+
+	def __init__(self, atraso=0.2):
+		super().__init__()
+		self.atraso, self.chamadas_de_contagem = atraso, 0
+
+	def find_one_and_update(self, *args, **kwargs):
+		import time
+
+		self.chamadas_de_contagem += 1
+		time.sleep(self.atraso)
+		raise ConnectionError("Mongo fora do ar")
+
+
+@pytest.fixture
+def relogio(monkeypatch):
+	relogio = _Relogio()
+	monkeypatch.setattr(limite_de_taxa, "_agora", relogio)
+	return relogio
+
+
+def test_depois_de_uma_falha_nao_toca_no_mongo_por_30s(monkeypatch, relogio):
+	import time
+
+	monkeypatch.setattr(settings, "chat_limite_por_minuto", 100)
+	colecao = _ColecaoLentaQueFalha()
+	limitador = limite_de_taxa.LimitadorMongo(colecao)
+
+	asyncio.run(limitador.registrar("uid-1"))  # 1ª: tenta, falha, cai na reserva
+	assert colecao.chamadas_de_contagem == 1
+	inicio = time.monotonic()
+	for _ in range(5):
+		relogio.agora += 5
+		assert asyncio.run(limitador.registrar("uid-1")) is None
+	assert colecao.chamadas_de_contagem == 1  # dentro dos 30 s: nem chama a coleção
+	assert time.monotonic() - inicio < 0.2  # e não espera o timeout do Mongo
+
+
+def test_depois_de_30s_tenta_o_mongo_de_novo(monkeypatch, relogio):
+	colecao = _ColecaoLentaQueFalha(atraso=0)
+	limitador = limite_de_taxa.LimitadorMongo(colecao)
+	asyncio.run(limitador.registrar("uid-1"))
+	relogio.agora += 29
+	asyncio.run(limitador.registrar("uid-1"))
+	assert colecao.chamadas_de_contagem == 1
+	relogio.agora += 2
+	asyncio.run(limitador.registrar("uid-1"))
+	assert colecao.chamadas_de_contagem == 2
+
+
+def test_pausa_configuravel(monkeypatch, relogio):
+	monkeypatch.setattr(settings, "chat_limite_mongo_pausa_segundos", 5)
+	colecao = _ColecaoLentaQueFalha(atraso=0)
+	limitador = limite_de_taxa.LimitadorMongo(colecao)
+	asyncio.run(limitador.registrar("uid-1"))
+	relogio.agora += 6
+	asyncio.run(limitador.registrar("uid-1"))
+	assert colecao.chamadas_de_contagem == 2
+
+
+def test_loga_error_so_ao_abrir_e_info_ao_fechar(monkeypatch, relogio, caplog):
+	import logging
+
+	caplog.set_level(logging.INFO, logger=limite_de_taxa.logger.name)
+	colecao = _ColecaoLentaQueFalha(atraso=0)
+	limitador = limite_de_taxa.LimitadorMongo(colecao)
+	for _ in range(4):
+		asyncio.run(limitador.registrar("uid-1"))
+	relogio.agora += 31
+	asyncio.run(limitador.registrar("uid-1"))  # falha de novo: continua aberto, sem novo error
+	relogio.agora += 31
+	limitador._colecao = _ColecaoFalsa()  # Mongo voltou
+	asyncio.run(limitador.registrar("uid-1"))
+
+	erros = [r for r in caplog.records if r.levelno == logging.ERROR]
+	fechou = [r for r in caplog.records if r.levelno == logging.INFO and "voltou" in r.getMessage()]
+	assert len(erros) == 1 and len(fechou) == 1
+
+
+def test_uma_ida_so_ao_mongo_por_mensagem_e_o_limite_continua(monkeypatch):
+	monkeypatch.setattr(settings, "chat_limite_por_minuto", 20)
+	monkeypatch.setattr(settings, "chat_limite_por_dia", 300)
+	colecao = _ColecaoFalsa()
+	limitador = limite_de_taxa.LimitadorMongo(colecao)
+	resultados = [asyncio.run(limitador.registrar("uid-1")) for _ in range(21)]
+	assert resultados[:20] == [None] * 20 and resultados[20] is not None
+	assert colecao.chamadas == 21  # as duas janelas na mesma operação
+	assert list(colecao.documentos) == ["uid-1"]

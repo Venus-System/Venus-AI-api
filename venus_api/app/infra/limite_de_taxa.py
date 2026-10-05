@@ -13,7 +13,9 @@
 # O Mongo fora do ar nunca derruba a API, como já acontece com a memória e
 # as métricas: o startup não conecta, o índice é criado na primeira mensagem
 # (e tentado de novo se falhar), e uma falha na contagem cai no contador em
-# memória daquela instância.
+# memória daquela instância. Depois de uma falha, um disjuntor manda direto
+# para a memória por `chat_limite_mongo_pausa_segundos` (30 s): sem ele, cada
+# mensagem esperaria o timeout do Mongo antes de cair na reserva.
 
 from __future__ import annotations
 
@@ -31,6 +33,7 @@ logger = logging.getLogger(__name__)
 COLECAO_LIMITES = "limites_chat"
 _JANELAS = (("minuto", 60), ("dia", 86_400))
 _TIMEOUT_MONGO_MS = 2000
+_agora = time.monotonic  # relógio do disjuntor; trocado nos testes
 
 
 def _limite(janela: str) -> int:
@@ -75,6 +78,7 @@ class LimitadorMongo:
     def __init__(self, colecao: Any) -> None:
         self._colecao = colecao
         self._indice_criado = False
+        self._mongo_volta_em: float | None = None  # disjuntor aberto até este instante
         # Decisão: com o Mongo fora do ar, conta em memória (limite por
         # instância) em vez de devolver 500 ou liberar sem limite nenhum.
         # Mantém alguma proteção de custo sem bloquear usuários por falha de
@@ -82,14 +86,26 @@ class LimitadorMongo:
         self._reserva = LimitadorEmMemoria()
 
     async def registrar(self, uid: str) -> int | None:
-        try:
-            return await asyncio.to_thread(self._registrar, uid)
-        except Exception:
-            logger.error(
-                "Limite de mensagens: Mongo indisponível — contando em memória nesta instância.",
-                exc_info=True,
-            )
+        if self._mongo_volta_em is not None and _agora() < self._mongo_volta_em:
+            # Disjuntor aberto: nem toca no Mongo.
             return await self._reserva.registrar(uid)
+        try:
+            espera = await asyncio.to_thread(self._registrar, uid)
+        except Exception:
+            abrindo = self._mongo_volta_em is None
+            self._mongo_volta_em = _agora() + settings.chat_limite_mongo_pausa_segundos
+            if abrindo:
+                # Log só na transição (não a cada mensagem enquanto o Mongo não volta).
+                logger.error(
+                    "Limite de mensagens: Mongo indisponível — contando em memória nesta instância "
+                    "e tentando o Mongo de novo a cada %d s.", settings.chat_limite_mongo_pausa_segundos,
+                    exc_info=True,
+                )
+            return await self._reserva.registrar(uid)
+        if self._mongo_volta_em is not None:
+            self._mongo_volta_em = None
+            logger.info("Limite de mensagens: Mongo voltou — contador compartilhado de novo.")
+        return espera
 
     def _garantir_indice(self) -> None:
         """O Mongo apaga cada documento quando a janela dele acaba. Criado na
@@ -104,21 +120,29 @@ class LimitadorMongo:
                            exc_info=True)
 
     def _registrar(self, uid: str) -> int | None:
+        """As duas janelas numa ida só ao Mongo: um documento por uid com um
+        contador e o início de cada janela. O update em pipeline zera o
+        contador quando a janela gravada não é a atual e soma 1 quando é — a
+        mesma semântica de antes (janelas fixas por minuto e por dia UTC), sem
+        um round trip por janela. O documento expira no fim do dia."""
         from pymongo import ReturnDocument
 
         self._garantir_indice()
         agora = time.time()
+        janelas = {janela: _janela_atual(segundos, agora) for janela, segundos in _JANELAS}
+        atualizar: dict[str, Any] = {}
+        for janela, (inicio, _restante) in janelas.items():
+            atualizar[f"{janela}_contador"] = {"$cond": [{"$eq": [f"${janela}_inicio", inicio]},
+                                                        {"$add": [f"${janela}_contador", 1]}, 1]}
+            atualizar[f"{janela}_inicio"] = inicio
+        fim_do_dia = janelas["dia"][0] + dict(_JANELAS)["dia"]
+        atualizar["expira_em"] = datetime.fromtimestamp(fim_do_dia, tz=timezone.utc)
+        documento = self._colecao.find_one_and_update(
+            {"_id": uid}, [{"$set": atualizar}], upsert=True, return_document=ReturnDocument.AFTER,
+        )
         espera = None
-        for janela, segundos in _JANELAS:
-            inicio, restante = _janela_atual(segundos, agora)
-            documento = self._colecao.find_one_and_update(
-                {"_id": f"{uid}:{janela}:{inicio}"},
-                {"$inc": {"contador": 1},
-                 "$setOnInsert": {"expira_em": datetime.fromtimestamp(inicio + segundos, tz=timezone.utc)}},
-                upsert=True,
-                return_document=ReturnDocument.AFTER,
-            )
-            if documento["contador"] > _limite(janela):
+        for janela, (_inicio, restante) in janelas.items():
+            if documento[f"{janela}_contador"] > _limite(janela):
                 espera = max(espera or 0, math.ceil(restante))
         return espera
 

@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any
@@ -62,3 +63,40 @@ def criar_indice_faq() -> Any | None:
             descricao,
         )
     return indice
+
+
+class IndiceDoFaqEmSegundoPlano:
+    """Índice do FAQ construído depois de a API começar a responder.
+
+    Criar o índice local pode levar segundos (modelo de embeddings, trechos
+    do FAQ): feito no startup, atrasava o health check do ECS. Este objeto vai
+    para o grafo na hora, com `pronto=False`; o SDK não monta as tools do FAQ
+    enquanto ele não fica pronto, e o agente FAQ responde a mensagem de
+    indisponibilidade (`erro_tecnico`), tentando de novo na pergunta seguinte."""
+
+    def __init__(self) -> None:
+        self.indice: Any | None = None
+        self.pronto = False
+        self.falhou = False
+        self.tipo: str | None = None
+
+    def buscar(self, consulta: str, k: int = 3, score_minimo: float | None = None) -> list[dict[str, Any]]:
+        if self.indice is None:
+            raise RuntimeError("o índice do FAQ ainda não está pronto")
+        return self.indice.buscar(consulta, k=k, score_minimo=score_minimo)
+
+    async def construir(self) -> None:
+        """Roda numa thread (a criação é síncrona e pesada) e marca pronto."""
+        indice = await asyncio.to_thread(criar_indice_faq)
+        if indice is None:
+            # criar_indice_faq já logou o error; o FAQ segue indisponível.
+            self.falhou = True
+            return
+        self.indice, self.tipo, self.pronto = indice, descrever_indice(indice), True
+
+    def estado(self) -> dict[str, Any]:
+        """Para o health check detalhado."""
+        estado: dict[str, Any] = {"pronto": self.pronto, "tipo": self.tipo}
+        if self.falhou:
+            estado["falhou"] = True
+        return estado

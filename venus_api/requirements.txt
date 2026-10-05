@@ -8,4 +8,4 @@ langfuse>=4.15
 
 # SDK fixado por tag: cada deploy instala exatamente o mesmo código. Para
 # atualizar, siga o processo de release do README do SDK e troque a tag.
-venus-ai-sdk[mongo,a2a,rag] @ git+https://github.com/Venus-System/Venus-AI-Sdk.git@v0.2.0
+venus-ai-sdk[mongo,a2a,rag,google_calendar,neo4j] @ git+https://github.com/Venus-System/Venus-AI-Sdk.git@v0.3.0

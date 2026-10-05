@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     a2a_api_key: str | None = None
     a2a_base_url: str | None = None
 
+    # Chave do /v1/health/detalhado (header X-API-Key). Sem ela, vale a do
+    # A2A; sem nenhuma, o endpoint responde 404 — nunca fica público.
+    health_api_key: str | None = None
+
     # Pasta com os documentos do FAQ, indexados pro RAG do agente FAQ. Sem ela,
     # usa os documentos empacotados no SDK instalado — ver `infra/rag.py`.
     faq_dir: str | None = None
@@ -52,12 +56,20 @@ class Settings(BaseSettings):
     # A2A_AGENTES_EXTERNOS como {"nome": "http://host:porta"}. Sem elas, o FAQ
     # usa só o índice do RAG e a busca na web.
     mcp_servers: str | None = None
+    # Busca web do FAQ pelo servidor MCP oficial da Tavily (`infra/busca_web_mcp.py`):
+    # liga com TAVILY_API_KEY. `tavily_mcp_comando` é o executável instalado na
+    # imagem (Dockerfile); sem a chave, o SDK busca direto (DuckDuckGo).
+    tavily_api_key: str | None = None
+    tavily_mcp_comando: str = "tavily-mcp"
     a2a_agentes_externos: str | None = None
 
     # Limite de mensagens por usuário no /v1/chat (cada mensagem custa de 6 a
     # 12 chamadas de LLM). Ver `infra/limite_de_taxa.py`.
     chat_limite_por_minuto: int = 20
     chat_limite_por_dia: int = 300
+    # Com o Mongo fora do ar, quanto tempo o limitador conta só em memória
+    # antes de tentar o Mongo de novo (disjuntor).
+    chat_limite_mongo_pausa_segundos: int = 30
 
     # Onde a API está rodando: "desenvolvimento" (padrão), "qa" ou "producao".
     # Em produção, cair num fallback que piora a resposta (ex.: o índice do
@@ -66,6 +78,14 @@ class Settings(BaseSettings):
     # produção (e AMBIENTE=qa na de QA); a task definition não está neste
     # repositório, e sem a variável o log fica no nível de desenvolvimento.
     ambiente: str = "desenvolvimento"
+
+    # Google Calendar (`/v1/integracoes/google-calendar`): redirect URIs aceitas
+    # na troca do `code`, separadas por vírgula — as mesmas cadastradas no
+    # Google Console para o app. Sem a lista, nenhuma é aceita (400). As
+    # credenciais (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+    # GOOGLE_TOKEN_ENCRYPTION_KEY) e NEO4J_* são lidas pelo SDK direto do
+    # ambiente do processo.
+    google_redirect_uris_permitidas: str | None = None
 
 
 settings = Settings()
