@@ -17,10 +17,10 @@ python -m pip install -r venus_api/requirements-dev.txt
 
 `requirements.txt` tem só o que vai para produção (é o que a imagem Docker
 instala); `requirements-dev.txt` acrescenta `pytest` e `httpx`. O SDK é
-instalado por **tag** (`@v0.2.0`), não por branch — para atualizar, siga o
+instalado por **tag** (`@v0.3.0`), não por branch — para atualizar, siga o
 processo de release do README do SDK e troque a tag. A suíte roda contra o
 SDK instalado assim (nunca `pip install -e` de um checkout local), e
-`tests/test_versao_sdk.py` falha se a versão instalada for menor que a 0.2.0
+`tests/test_versao_sdk.py` falha se a versão instalada for menor que a 0.3.0
 ou não tiver as correções do guardrail.
 
 ## Testes
