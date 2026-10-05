@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     # A2A_AGENTES_EXTERNOS como {"nome": "http://host:porta"}. Sem elas, o FAQ
     # usa só o índice do RAG e a busca na web.
     mcp_servers: str | None = None
+    # Busca web do FAQ pelo servidor MCP oficial da Tavily (`infra/busca_web_mcp.py`):
+    # liga com TAVILY_API_KEY. `tavily_mcp_comando` é o executável instalado na
+    # imagem (Dockerfile); sem a chave, o SDK busca direto (DuckDuckGo).
+    tavily_api_key: str | None = None
+    tavily_mcp_comando: str = "tavily-mcp"
     a2a_agentes_externos: str | None = None
 
     # Limite de mensagens por usuário no /v1/chat (cada mensagem custa de 6 a

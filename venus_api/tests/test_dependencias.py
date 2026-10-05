@@ -53,6 +53,8 @@ def test_imagem_leva_o_modelo_do_fastembed_e_nao_usa_rede_para_ele():
 	dockerfile = (RAIZ / "Dockerfile").read_text(encoding="utf-8")
 	estagio_de_build, estagio_final = dockerfile.split("\nFROM ")[1:3]
 	assert "get_embed_model()" in estagio_de_build  # baixado no build, não no startup
+	# O SDK 0.3.0 limita o download a 15 s; no build o limite precisa ser maior.
+	assert re.search(r"VENUS_FASTEMBED_TIMEOUT_SEGUNDOS=\d{3,}", estagio_de_build)
 	assert "ENV FASTEMBED_CACHE_PATH=" in estagio_final and "HF_HUB_OFFLINE=1" in estagio_final
 	assert "COPY --from=dependencias /modelos" in estagio_final
 
@@ -69,3 +71,13 @@ def test_sincronizacao_do_neo4j_so_roda_a_mao():
 	assert "python -m venus_sdk.checkup.sincronizar" in workflow
 	for segredo in ("DATABASE_URL", "NEO4J_URI", "NEO4J_USER", "NEO4J_PASSWORD"):
 		assert f"secrets.{segredo}" in workflow
+
+
+def test_imagem_instala_o_servidor_mcp_da_tavily_com_versao_fixada():
+	dockerfile = (RAIZ / "Dockerfile").read_text(encoding="utf-8")
+	estagio_de_build, estagio_final = dockerfile.split("\nFROM ")[1:3]
+	versao = re.search(r"ARG TAVILY_MCP_VERSAO=(\S+)", estagio_de_build)
+	assert versao and re.fullmatch(r"\d+\.\d+\.\d+", versao.group(1))
+	assert "tavily-mcp@${TAVILY_MCP_VERSAO}" in estagio_de_build
+	assert "npx" not in dockerfile and "@latest" not in dockerfile
+	assert "COPY --from=dependencias /opt/tavily-mcp" in estagio_final and "nodejs" in estagio_final

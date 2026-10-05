@@ -39,7 +39,8 @@ flowchart TB
     qdrant[("Qdrant<br/>coleção do FAQ")]
     faqlocal["Índice local do FAQ (sem Qdrant)<br/>FastEmbed; sem o modelo, EmbeddingsHash"]
     llms["LLMs com fallback<br/>Groq -> Mistral -> Gemini"]
-    web["Busca web<br/>Tavily / DuckDuckGo"]
+    tavily_mcp["Servidor MCP da Tavily<br/>(tavily-mcp na imagem, stdio)"]
+    web["Busca web direta<br/>Tavily / DuckDuckGo (reserva)"]
     gcal["Google Calendar<br/>(OAuth + API de agenda)"]
     neo4j[("Neo4j<br/>check-up da rotina")]
     sync["Workflow manual<br/>Sincronizar Neo4j"]
@@ -67,7 +68,8 @@ flowchart TB
     rot --> llms
     juiz --> llms
     orq --> llms
-    esp --> web
+    esp -- "MCP: tavily_search (TAVILY_API_KEY)" --> tavily_mcp
+    esp -. "reserva: MCP fora do ar ou sem chave" .-> web
     esp -. "QDRANT_URL" .-> qdrant
     esp --> faqlocal
     esp -. "MCP_SERVERS" .-> mcp_ext
@@ -87,6 +89,11 @@ flowchart TB
 - **Identidade:** o `uid` vem do token do Firebase; o `user_id` do Postgres é
   resolvido pela API (`venus.users.firebase_uid`), nunca enviado pelo app. Dentro
   do grafo, as tools de dados da conta usam sempre o usuário da conversa.
+- **MCP:** a busca na web do FAQ passa pelo servidor MCP oficial da Tavily
+  (`tavily_search`), instalado na imagem com versão fixada; a sessão abre em
+  segundo plano e, se não abrir ou cair, a busca é direta. Nenhuma tool MCP
+  de banco de dados é exposta ao LLM. `MCP_SERVERS` acrescenta servidores
+  MCP externos, se configurado.
 - **Startup:** o índice do FAQ é construído em segundo plano, depois de a API
   já responder ao `/v1/health`; até ficar pronto, perguntas de FAQ recebem a
   mensagem de indisponibilidade (200). O `/v1/health/detalhado` mostra

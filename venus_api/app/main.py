@@ -3,9 +3,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from venus_sdk.flows.venus_flow import compilar_grafo_venus
+from venus_sdk.rag.web import BuscaWebMcp
 
 from venus_api.app.api.a2a import ROTA_A2A, A2ADinamico, criar_app_a2a
 from venus_api.app.api.v1.router import router as v1_router
+from venus_api.app.core.config import settings
+from venus_api.app.infra.busca_web_mcp import SessaoTavilyMcp
 from venus_api.app.infra.checkpointer import criar_checkpointer
 from venus_api.app.infra.ferramentas_externas import carregar_tools_faq_extras
 from venus_api.app.infra.ferramentas_rotina import montar_tools_rotina_extras
@@ -28,6 +31,12 @@ async def lifespan(app: FastAPI):
     indice_faq = IndiceDoFaqEmSegundoPlano()
     app.state.indice_faq = indice_faq
     tarefa_do_faq = asyncio.create_task(indice_faq.construir())
+    # Busca web do FAQ pelo MCP da Tavily: a sessão abre em segundo plano;
+    # enquanto não abre (ou se falhar), o SDK busca direto. Ver infra/busca_web_mcp.py.
+    tavily_mcp = SessaoTavilyMcp()
+    app.state.tavily_mcp = tavily_mcp
+    tarefa_do_mcp = asyncio.create_task(tavily_mcp.abrir()) if settings.tavily_api_key else None
+    busca_web_faq = BuscaWebMcp(lambda: tavily_mcp.tool) if tarefa_do_mcp is not None else None
     try:
         app.state.fluxo_venus = compilar_grafo_venus(
             checkpointer=criar_checkpointer(),
@@ -36,11 +45,13 @@ async def lifespan(app: FastAPI):
             indice_rag=indice_faq,
             tools_faq_extras=await carregar_tools_faq_extras(),
             tools_rotina_extras=montar_tools_rotina_extras(pool),
+            busca_web_faq=busca_web_faq,
         )
         app.state.a2a_app = criar_app_a2a(app.state.fluxo_venus)
         yield
     finally:
         tarefa_do_faq.cancel()
+        await tavily_mcp.fechar(tarefa_do_mcp)
         if pool is not None:
             await pool.close()
         await _fechar_neo4j()
