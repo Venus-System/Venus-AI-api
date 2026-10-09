@@ -17,11 +17,11 @@ python -m pip install -r venus_api/requirements-dev.txt
 
 `requirements.txt` tem só o que vai para produção (é o que a imagem Docker
 instala); `requirements-dev.txt` acrescenta `pytest` e `httpx`. O SDK é
-instalado por **tag** (`@v0.3.0`), não por branch — para atualizar, siga o
+instalado por **tag** (`@v0.4.0`), não por branch — para atualizar, siga o
 processo de release do README do SDK e troque a tag. A suíte roda contra o
 SDK instalado assim (nunca `pip install -e` de um checkout local), e
-`tests/test_versao_sdk.py` falha se a versão instalada for menor que a 0.3.0
-ou não tiver as correções do guardrail.
+`tests/test_versao_sdk.py` falha se a versão instalada for menor que a 0.4.0,
+não tiver as correções do guardrail ou não tiver a `expressao` do chat.
 
 ## Testes
 
@@ -61,6 +61,22 @@ elas parte das funções fica desligada.
 | `GOOGLE_REDIRECT_URIS_PERMITIDAS` | Redirect URIs aceitas no `POST /v1/integracoes/google-calendar`, separadas por vírgula (as mesmas do Google Console) | Nenhuma é aceita (400) |
 | `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Neo4j do check-up da rotina (conflitos de ativos, ordem, repetidos) | Check-up desligado: a tool nem é registrada |
 | `A2A_AGENTES_EXTERNOS` | JSON `{"nome": "http://host:porta"}` de agentes A2A que o FAQ pode consultar | Sem consulta a agentes externos |
+
+## Chat: `POST /v1/chat`
+
+Com o ID token do Firebase em `Authorization: Bearer <token>`:
+
+- **Pedido:** `{"mensagem": "...", "conversation_id": "..."}`. Na primeira
+  mensagem, o `conversation_id` vai sem valor; nas seguintes, reenvie o que
+  voltou.
+- **Resposta:** `{"resposta": "...", "conversation_id": "...", "expressao": "neutra"}`.
+  `expressao` é a cara da Veninha que a web mostra: `magoada` quando a mensagem
+  ofendeu a Venus, `neutra` no resto. A lista é fechada, vem do SDK
+  (`venus_sdk.state.Expressao`) e é escolhida pelo código, nunca pelo modelo.
+  Um valor que a API não conhece vira `neutra`.
+- **Erros:** `401` sem token ou com token inválido; `422` mensagem vazia ou
+  longa demais; `429` acima do limite de mensagens, com `Retry-After`; `502`
+  falha ao processar.
 
 ## Google Calendar: conexão pelo app e pela web
 
