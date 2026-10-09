@@ -9,6 +9,7 @@ com a variável de ambiente correspondente.
 ```mermaid
 flowchart TB
     app["App mobile"]
+    site["Web (navegador)<br/>CORS_ORIGENS_PERMITIDAS"]
     firebase["Firebase Auth<br/>(ID token)"]
     externo["Sistema externo<br/>(cliente A2A)"]
 
@@ -51,6 +52,9 @@ flowchart TB
     app -- "login" --> firebase
     app -- "Bearer token" --> chat
     app -- "code do OAuth (PKCE)" --> gcal_api
+    site -- "login" --> firebase
+    site -- "Bearer token (CORS)" --> chat
+    site -- "code do OAuth (PKCE)" --> gcal_api
     gcal_api -- "troca o code / revoga" --> gcal
     gcal_api -- "refresh_token cifrado" --> postgres
     externo --> a2a_srv
@@ -86,6 +90,10 @@ flowchart TB
   rotina. Sem as variáveis, as tools nem são registradas e o startup loga o
   motivo. O Neo4j é uma cópia do Postgres + regras do SDK, refeita pelo
   workflow manual "Sincronizar Neo4j".
+- **Navegador:** a web chama a API direto do navegador. O CORS só libera as
+  origens de `CORS_ORIGENS_PERMITIDAS` e responde o preflight antes do
+  middleware de métricas, então o `OPTIONS` não vira métrica. O app mobile
+  não passa por CORS.
 - **Identidade:** o `uid` vem do token do Firebase; o `user_id` do Postgres é
   resolvido pela API (`venus.users.firebase_uid`), nunca enviado pelo app. Dentro
   do grafo, as tools de dados da conta usam sempre o usuário da conversa.

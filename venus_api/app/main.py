@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from venus_sdk.flows.venus_flow import compilar_grafo_venus
 from venus_sdk.rag.web import BuscaWebMcp
 
@@ -71,7 +72,25 @@ async def _fechar_neo4j() -> None:
         await get_neo4j_driver().close()
 
 
+def _origens_cors() -> list[str]:
+    """Origens de CORS_ORIGENS_PERMITIDAS. Sem a barra final: o `Origin` do
+    navegador nunca tem barra, e `https://x.app/` no env nunca casaria."""
+    return [origem.strip().rstrip("/") for origem in (settings.cors_origens_permitidas or "").split(",")
+            if origem.strip()]
+
+
 app = FastAPI(title="Venus AI API", lifespan=lifespan)
 app.middleware("http")(medir_requisicao)
+# Registrado depois do medir_requisicao: no Starlette o último registrado fica
+# por fora, então o preflight (OPTIONS) do navegador é respondido aqui, sem
+# virar métrica. O token vai no Authorization (sem cookie), por isso sem
+# allow_credentials. O Retry-After exposto deixa a web ler a espera do 429.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origens_cors(),
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+    expose_headers=["Retry-After"],
+)
 app.include_router(v1_router, prefix="/v1")
 app.mount(ROTA_A2A, A2ADinamico())
