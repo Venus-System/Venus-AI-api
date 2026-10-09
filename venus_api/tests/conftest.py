@@ -1,4 +1,9 @@
 import os
+
+# Antes de importar o app: a lista de origens do CORS é lida uma vez, quando o
+# app é montado, e o `.env` da máquina não pode mudar o resultado dos testes.
+os.environ["CORS_ORIGENS_PERMITIDAS"] = "http://localhost:5173"
+
 from typing import Any
 
 import pytest

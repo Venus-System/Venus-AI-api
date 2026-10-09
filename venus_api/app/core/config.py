@@ -87,5 +87,11 @@ class Settings(BaseSettings):
     # ambiente do processo.
     google_redirect_uris_permitidas: str | None = None
 
+    # CORS: origens (esquema + domínio + porta, sem barra no fim) que podem
+    # chamar a API pelo navegador, separadas por vírgula — a web local
+    # (http://localhost:5173) e a publicada. Sem a lista, nenhum navegador
+    # consegue chamar a API; o app mobile não passa por CORS e não é afetado.
+    cors_origens_permitidas: str | None = None
+
 
 settings = Settings()

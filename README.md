@@ -41,6 +41,7 @@ elas parte das funções fica desligada.
 |---|---|---|
 | `GROQ_API_KEY`, `MISTRAL_API_KEY`, `GEMINI_API_KEY` | Chaves dos modelos de linguagem (cadeia com fallback entre os provedores que tiverem chave) | Sem nenhuma, a Venus só devolve a mensagem de reserva |
 | `FIREBASE_CREDENTIALS` | Conta de serviço do Firebase: **caminho** do JSON (local) ou o **conteúdo** do JSON (nuvem) | O chat recusa todas as mensagens |
+| `CORS_ORIGENS_PERMITIDAS` | Origens que podem chamar a API pelo navegador (a web), separadas por vírgula e sem barra no fim. Ex.: `http://localhost:5173,https://venus-web-application.vercel.app`. Libera `GET`, `POST` e `DELETE` com os cabeçalhos `Authorization` e `Content-Type`, e expõe o `Retry-After` do `429`. O app mobile não passa por CORS | O navegador bloqueia todas as chamadas da web; o app continua funcionando |
 | `MONGODB_URL` | Histórico de conversa, memória de longo prazo, métricas e contador do limite de mensagens | Histórico e memória em RAM (perdidos ao reiniciar), métricas não são gravadas e o limite conta por instância |
 | `DATABASE_URL` | Postgres do CRUD (produto, ingrediente, alergia) e identificação do usuário pelo `uid` do Firebase (`venus.users.firebase_uid`) | Esses especialistas avisam que não conseguiram consultar, e a conversa fica sem os dados da conta (favoritos, alergias) |
 | `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | Rastreamento no Langfuse | Sem rastreamento |
@@ -61,20 +62,31 @@ elas parte das funções fica desligada.
 | `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Neo4j do check-up da rotina (conflitos de ativos, ordem, repetidos) | Check-up desligado: a tool nem é registrada |
 | `A2A_AGENTES_EXTERNOS` | JSON `{"nome": "http://host:porta"}` de agentes A2A que o FAQ pode consultar | Sem consulta a agentes externos |
 
-## Google Calendar: conexão pelo app
+## Google Calendar: conexão pelo app e pela web
 
 A Venus consulta a agenda e agenda a rotina do usuário (sempre com
-confirmação) quando ele conecta o Google Calendar. O app faz o OAuth e a API
-guarda o acesso:
+confirmação) quando ele conecta o Google Calendar. O app ou a web faz o OAuth
+e a API guarda o acesso.
 
-1. O app gera um `code_verifier` e o `code_challenge` (PKCE, S256) e abre o
+App e web usam o **mesmo** cliente OAuth do Google Console, do tipo
+**"Aplicativo da Web"**: é o do `GOOGLE_CLIENT_ID`, com o qual a API troca o
+`code` e renova o acesso. Um cliente Android ou iOS não tem `client_secret` e
+não funciona no navegador, então o `code` dele não pode ser trocado pela API.
+Cada endereço de volta (redirect URI) precisa estar cadastrado em dois
+lugares, com a string idêntica: nas "URIs de redirecionamento autorizados" do
+cliente no Console e em `GOOGLE_REDIRECT_URIS_PERMITIDAS`. Para a web:
+`http://localhost:5173/integracoes/google-agenda` e o mesmo caminho no domínio
+publicado (`https://venus-web-application.vercel.app/integracoes/google-agenda`).
+A web também precisa da origem dela em `CORS_ORIGENS_PERMITIDAS`.
+
+1. O app (ou a web) gera um `code_verifier` e o `code_challenge` (PKCE, S256) e abre o
    consentimento do Google com `client_id`, `redirect_uri` (uma das
    cadastradas em `GOOGLE_REDIRECT_URIS_PERMITIDAS`),
    `scope="https://www.googleapis.com/auth/calendar.freebusy https://www.googleapis.com/auth/calendar.events"`,
    `access_type=offline` e `prompt=consent` (sem esses dois, o Google não
    devolve `refresh_token`).
-2. O Google redireciona para o app com `code`.
-3. O app chama `POST /v1/integracoes/google-calendar` com o ID token do
+2. O Google redireciona para o app (ou para a página da web) com `code`.
+3. O app (ou a web) chama `POST /v1/integracoes/google-calendar` com o ID token do
    Firebase e `{"code": ..., "redirect_uri": ..., "code_verifier": ...}`.
    A API troca o `code`, confere o escopo e salva o `refresh_token` cifrado.
    Respostas: `204` conectado; `400` `redirect_uri` fora da lista ou `code`
