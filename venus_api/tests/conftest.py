@@ -25,11 +25,13 @@ class FluxoFalso:
 
 	def __init__(self) -> None:
 		self.resposta = "Oii, tudo bem?? Me conta como posso te ajudar hoje!!"
+		# Outros campos do estado final (ex.: `expressao`), por teste.
+		self.estado_final: dict[str, Any] = {}
 		self.chamadas: list[dict[str, Any]] = []
 
 	async def ainvoke(self, estado: dict, config: dict | None = None) -> dict:
 		self.chamadas.append({"estado": estado, "config": config})
-		return {"resposta_final": self.resposta}
+		return {"resposta_final": self.resposta, **self.estado_final}
 
 
 class ColecaoFalsa:

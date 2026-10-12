@@ -8,9 +8,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, get_args
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from venus_sdk.state import Expressao
 
 from venus_api.app.api.deps import get_fluxo_venus, get_limitador, get_pool, get_session_id
 from venus_api.app.infra.postgres import resolver_usuario_postgres
@@ -72,7 +73,11 @@ async def chat(
             detail="Falha ao processar a mensagem",
         ) from erro
 
+    expressao = resultado.get("expressao")
     return ChatResponse(
         resposta=resultado.get("resposta_final") or _RESPOSTA_VAZIA,
         conversation_id=conversation_id,
+        # Fora da lista (ex.: um SDK com uma cara nova) vira `neutra`: nem 500
+        # nem um valor que a web não conhece.
+        expressao=expressao if expressao in get_args(Expressao) else "neutra",
     )

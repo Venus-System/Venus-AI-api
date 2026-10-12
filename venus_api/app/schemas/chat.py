@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 from venus_sdk.guardrail_rules import TAMANHO_MAXIMO_MENSAGEM
+from venus_sdk.state import Expressao
 
 
 class ChatRequest(BaseModel):
@@ -27,3 +28,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     resposta: str
     conversation_id: str
+    # Cara da Veninha que a web mostra junto da resposta: `magoada` quando a
+    # mensagem ofendeu a Venus, `neutra` no resto. Lista fechada do SDK
+    # (`venus_sdk.state.Expressao`), escolhida pelo código, nunca pelo modelo.
+    expressao: Expressao = "neutra"
