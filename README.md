@@ -144,4 +144,4 @@ O `--env-file` é necessário: o SDK lê as chaves dos modelos no momento em que
 docker build -t venus-api .
 ```
 
-A imagem escuta na porta `8080`; o health check é `GET /v1/health` (público, responde na hora). O `GET /v1/health/detalhado` exige `X-API-Key`.
+A imagem escuta na porta `8000`; o health check é `GET /v1/health` (público, responde na hora). O `GET /v1/health/detalhado` exige `X-API-Key`.
