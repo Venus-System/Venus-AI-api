@@ -55,5 +55,5 @@ COPY venus_api/ venus_api/
 RUN addgroup --system venus && adduser --system --ingroup venus venus
 USER venus
 
-EXPOSE 8080
-CMD ["uvicorn", "venus_api.app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+EXPOSE 8000
+CMD ["uvicorn", "venus_api.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
