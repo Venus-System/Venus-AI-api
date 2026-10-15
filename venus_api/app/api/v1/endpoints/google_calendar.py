@@ -25,7 +25,7 @@ from venus_api.app.api.deps import get_limitador, get_pool, get_session_id
 from venus_api.app.core.config import settings
 from venus_api.app.infra.ferramentas_rotina import google_calendar_configurado
 from venus_api.app.infra.google_oauth import revogar_token_google
-from venus_api.app.infra.postgres import resolver_usuario_postgres
+from venus_api.app.infra.postgres import buscar_usuario_postgres
 from venus_api.app.schemas.google_calendar import ConexaoGoogleCalendar, EstadoGoogleCalendar
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,11 @@ def _redirects_permitidos() -> set[str]:
 async def _usuario_postgres(pool: Any, uid: str) -> int:
 	if pool is None:
 		raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Banco de dados indisponível.")
-	user_id = await resolver_usuario_postgres(pool, uid)
+	try:
+		user_id = await buscar_usuario_postgres(pool, uid)
+	except Exception as erro:  # noqa: BLE001 — banco fora do ar não é "sem cadastro" (409)
+		logger.error("Não deu para consultar o cadastro no Postgres: %s", type(erro).__name__)
+		raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Banco de dados indisponível.") from erro
 	if user_id is None:
 		raise HTTPException(status.HTTP_409_CONFLICT, "Usuário sem cadastro no Venus para este login.")
 	return user_id

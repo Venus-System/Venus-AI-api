@@ -108,7 +108,7 @@ A web também precisa da origem dela em `CORS_ORIGENS_PERMITIDAS`.
    Respostas: `204` conectado; `400` `redirect_uri` fora da lista ou `code`
    inválido; `401` sem token; `409` login sem cadastro no Venus; `422`
    permissão sem criar eventos (reconectar); `429` muitas tentativas; `503`
-   integração não configurada.
+   integração não configurada ou Postgres fora do ar.
 4. `GET /v1/integracoes/google-calendar` devolve só `{"conectado": bool}`.
    `DELETE` revoga o acesso no Google e apaga o token (`204`, mesmo se a
    revogação falhar).
