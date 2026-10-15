@@ -11,6 +11,7 @@ import pytest
 from venus_api.app.api.deps import get_pool
 from venus_api.app.api.v1.endpoints import google_calendar as endpoint
 from venus_api.app.core.config import settings
+from venus_api.app.infra import postgres
 from venus_api.app.main import app
 
 URL = "/v1/integracoes/google-calendar"
@@ -59,7 +60,7 @@ def google(monkeypatch) -> _Registro:
 		registro.revogados.append(token)
 		return True
 
-	monkeypatch.setattr(endpoint, "resolver_usuario_postgres", resolver)
+	monkeypatch.setattr(endpoint, "buscar_usuario_postgres", resolver)
 	monkeypatch.setattr(endpoint, "trocar_codigo_por_token", trocar)
 	monkeypatch.setattr(endpoint, "salvar_refresh_token", salvar)
 	monkeypatch.setattr(endpoint, "obter_credencial", obter)
@@ -119,10 +120,25 @@ def test_usuario_sem_cadastro_no_postgres_devolve_409(client, auth_headers, goog
 	async def sem_mapeamento(pool, uid):
 		return None
 
-	monkeypatch.setattr(endpoint, "resolver_usuario_postgres", sem_mapeamento)
+	monkeypatch.setattr(endpoint, "buscar_usuario_postgres", sem_mapeamento)
 	assert _post(client, auth_headers).status_code == 409
 	assert client.get(URL, headers=auth_headers).status_code == 409
 	assert client.delete(URL, headers=auth_headers).status_code == 409
+
+
+class _PoolForaDoAr:
+	def acquire(self):
+		raise ConnectionRefusedError("Postgres fora do ar")
+
+
+def test_banco_fora_do_ar_devolve_503_e_nao_409(client, auth_headers, google, monkeypatch):
+	# Com a busca de verdade: um 409 ("sem cadastro") mandaria investigar o
+	# usuário quando o problema é a conexão com o banco.
+	monkeypatch.setattr(endpoint, "buscar_usuario_postgres", postgres.buscar_usuario_postgres)
+	app.dependency_overrides[get_pool] = lambda: _PoolForaDoAr()
+	assert _post(client, auth_headers).status_code == 503
+	assert client.get(URL, headers=auth_headers).status_code == 503
+	assert client.delete(URL, headers=auth_headers).status_code == 503
 
 
 def test_campos_de_identidade_no_corpo_sao_ignorados(client, auth_headers, google):

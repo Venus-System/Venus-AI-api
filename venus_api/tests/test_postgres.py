@@ -149,3 +149,15 @@ def test_resolver_sem_pool_sem_linha_ou_com_erro_devolve_none():
 	assert asyncio.run(postgres.resolver_usuario_postgres(_PoolFalso(_ConexaoFalsa()), "uid-x")) is None
 	com_erro = _PoolFalso(_ConexaoFalsa(erro=RuntimeError("banco fora")))
 	assert asyncio.run(postgres.resolver_usuario_postgres(com_erro, "uid-x")) is None
+
+
+def test_buscar_sem_linha_devolve_none():
+	assert asyncio.run(postgres.buscar_usuario_postgres(_PoolFalso(_ConexaoFalsa()), "uid-x")) is None
+
+
+def test_buscar_deixa_a_falha_do_banco_subir():
+	"""Quem exige cadastro (o Google Calendar) precisa distinguir banco fora do
+	ar de usuário sem cadastro."""
+	com_erro = _PoolFalso(_ConexaoFalsa(erro=ConnectionRefusedError("banco fora")))
+	with pytest.raises(ConnectionRefusedError):
+		asyncio.run(postgres.buscar_usuario_postgres(com_erro, "uid-x"))
