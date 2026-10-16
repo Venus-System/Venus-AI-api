@@ -281,3 +281,22 @@ def test_uma_ida_so_ao_mongo_por_mensagem_e_o_limite_continua(monkeypatch):
 	assert resultados[:20] == [None] * 20 and resultados[20] is not None
 	assert colecao.chamadas == 21  # as duas janelas na mesma operação
 	assert list(colecao.documentos) == ["uid-1"]
+
+
+# --- Revisão técnica 4: um cliente Mongo só, com timeout curto -------------------
+
+
+def test_limitador_e_metricas_usam_o_mesmo_cliente_mongo_com_timeout_curto(monkeypatch):
+	from venus_api.app.observability import middleware
+
+	monkeypatch.setattr(settings, "mongodb_url", "mongodb://127.0.0.1:1")
+	middleware._colecao_metricas.cache_clear()
+	try:
+		limitador = limite_de_taxa.criar_limitador()
+		metricas = middleware._colecao_metricas()
+		cliente = metricas.database.client
+		assert limitador._colecao.database.client is cliente
+		# Com o Mongo fora do ar, a métrica e o limitador desistem em 2 s, não em 30.
+		assert cliente.options.server_selection_timeout == 2
+	finally:
+		middleware._colecao_metricas.cache_clear()

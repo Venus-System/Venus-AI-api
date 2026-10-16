@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import dataclass
-from functools import lru_cache
 
 import firebase_admin
 from firebase_admin import auth, credentials
@@ -49,7 +49,9 @@ def _montar_credencial() -> credentials.Base:
         ) from erro
 
 
-@lru_cache(maxsize=1)
+_trava_do_firebase = threading.Lock()
+
+
 def _inicializar_firebase() -> None:
     """Inicializa o Firebase Admin na primeira validação, não no startup.
 
@@ -57,8 +59,17 @@ def _inicializar_firebase() -> None:
     aplicação ainda sobe e `/v1/health` responde — só o chat recusa. Se a
     credencial faltar, o erro levantado aqui já diz qual arquivo não foi
     encontrado.
+
+    A trava (e não um `lru_cache`, que deixa duas threads executarem juntas)
+    porque as validações rodam em threads: logo depois do boot, duas
+    requisições simultâneas inicializariam o app duas vezes, e o `ValueError`
+    de app duplicado viraria 401 no `deps.py`.
     """
-    firebase_admin.initialize_app(_montar_credencial())
+    with _trava_do_firebase:
+        try:
+            firebase_admin.get_app()
+        except ValueError:
+            firebase_admin.initialize_app(_montar_credencial())
 
 
 def validar_token(token: str | None) -> Usuario:

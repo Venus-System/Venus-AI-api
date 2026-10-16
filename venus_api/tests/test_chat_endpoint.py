@@ -116,3 +116,36 @@ def test_chat_recusa_mensagem_vazia(client, auth_headers):
 	response = client.post("/v1/chat", json={"mensagem": ""}, headers=auth_headers)
 
 	assert response.status_code == 422
+
+
+# --- Revisão técnica 4 ---------------------------------------------------------
+
+
+def test_conversation_id_grande_demais_devolve_422(client, fluxo_falso, auth_headers):
+	"""O conversation_id vai para cada checkpoint no Mongo e para o Langfuse:
+	sem limite, um cliente inflaria os dois com um texto enorme."""
+	resposta = client.post("/v1/chat", json={"mensagem": "oi", "conversation_id": "x" * 129}, headers=auth_headers)
+	assert resposta.status_code == 422
+	assert fluxo_falso.chamadas == []
+
+
+def test_conversation_id_no_limite_funciona(client, fluxo_falso, auth_headers):
+	resposta = client.post("/v1/chat", json={"mensagem": "oi", "conversation_id": "x" * 128}, headers=auth_headers)
+	assert resposta.status_code == 200
+
+
+def test_grafo_demorando_demais_devolve_504(client, fluxo_falso, auth_headers, monkeypatch):
+	"""Um provedor de LLM travado segurava a requisição até a plataforma cortar
+	a conexão; agora a API desiste no tempo configurado e avisa."""
+	import asyncio
+
+	from venus_api.app.core.config import settings
+
+	async def lento(estado, config=None):
+		await asyncio.sleep(5)
+
+	monkeypatch.setattr(fluxo_falso, "ainvoke", lento)
+	monkeypatch.setattr(settings, "chat_timeout_segundos", 0.05)
+	resposta = client.post("/v1/chat", json={"mensagem": "oi"}, headers=auth_headers)
+	assert resposta.status_code == 504
+	assert "demorou" in resposta.json()["detail"]

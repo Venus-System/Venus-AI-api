@@ -50,6 +50,18 @@ async def _usuario_postgres(pool: Any, uid: str) -> int:
 	return user_id
 
 
+async def _revogar_sem_falhar(token: dict[str, Any]) -> None:
+	"""Revoga um token recém-recebido que a API vai recusar: sem isso, a Venus
+	ficava autorizada na conta Google sem o token estar salvo em lugar nenhum."""
+	valor = token.get("refresh_token") or token.get("access_token")
+	if not valor:
+		return
+	try:
+		await revogar_token_google(valor)
+	except Exception as erro:  # noqa: BLE001 — a recusa (422) vale de qualquer jeito
+		logger.warning("Falha ao revogar o token recusado no Google (%s).", type(erro).__name__)
+
+
 def _exigir_google_configurado() -> None:
 	if not google_calendar_configurado():
 		raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Integração com o Google Calendar não configurada.")
@@ -62,7 +74,9 @@ async def conectar(
 	pool: Any = Depends(get_pool),
 	limitador: Any = Depends(get_limitador),
 ) -> Response:
-	espera = await limitador.registrar(uid)
+	# Chave própria no limitador: conectar a agenda não gasta a cota do chat,
+	# e quem esgotou o chat ainda consegue conectar.
+	espera = await limitador.registrar(f"google-calendar:{uid}")
 	if espera is not None:
 		raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Muitas tentativas em pouco tempo.",
 		                    headers={"Retry-After": str(espera)})
@@ -86,6 +100,7 @@ async def conectar(
 
 	escopo = token.get("scope") or ""
 	if not pode_criar_eventos(escopo):
+		await _revogar_sem_falhar(token)
 		raise HTTPException(
 			status.HTTP_422_UNPROCESSABLE_ENTITY,
 			"Permissão insuficiente: reconecte autorizando a Venus a criar eventos na sua agenda.",
@@ -94,6 +109,7 @@ async def conectar(
 	if not refresh_token:
 		# O Google só manda refresh_token com access_type=offline e
 		# prompt=consent: sem ele, a Venus perderia o acesso em uma hora.
+		await _revogar_sem_falhar(token)
 		raise HTTPException(
 			status.HTTP_422_UNPROCESSABLE_ENTITY,
 			"O Google não devolveu acesso contínuo: refaça a conexão pedindo acesso offline.",
@@ -124,12 +140,19 @@ async def desconectar(uid: str = Depends(get_session_id), pool: Any = Depends(ge
 		logger.warning("Não deu para ler o token antes de desconectar (%s); apagando sem revogar.",
 		               type(erro).__name__)
 		credencial = None
+	# Apaga o local antes de revogar: se o banco falhar, nada foi revogado e a
+	# pessoa continua conectada de verdade (em vez de "conectada" com um token
+	# que o Google já não aceita).
+	try:
+		await remover_refresh_token(pool, user_id)
+	except Exception as erro:  # noqa: BLE001
+		logger.error("Não deu para apagar o token do Google (user_id=%s): %s", user_id, type(erro).__name__)
+		raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Não foi possível desconectar agora.") from erro
 	if credencial is not None:
 		try:
 			await revogar_token_google(credencial[0])
-		except Exception as erro:  # noqa: BLE001 — a desconexão local acontece de qualquer jeito
-			logger.warning("Falha ao revogar o token no Google (%s); apagando o token local mesmo assim.",
+		except Exception as erro:  # noqa: BLE001 — o token local já foi apagado
+			logger.warning("Falha ao revogar o token no Google (%s); o token local já foi apagado.",
 			               type(erro).__name__)
-	await remover_refresh_token(pool, user_id)
 	logger.info("Google Calendar desconectado (user_id=%s).", user_id)
 	return Response(status_code=status.HTTP_204_NO_CONTENT)

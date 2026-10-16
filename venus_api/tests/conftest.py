@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from venus_api.app.api.deps import get_fluxo_venus
 from venus_api.app.core import security
 from venus_api.app.core.config import settings
+from venus_api.app.infra.mongo import cliente_mongo
 from venus_api.app.main import app
 from venus_api.app.observability import middleware, tracing
 
@@ -54,8 +55,10 @@ def sem_mongo_real(monkeypatch):
 	# cache), e o teardown aqui roda antes do monkeypatch desfazer a troca.
 	colecao_real = middleware._colecao_metricas
 	colecao_real.cache_clear()
+	cliente_mongo.cache_clear()
 	yield
 	colecao_real.cache_clear()
+	cliente_mongo.cache_clear()
 
 
 @pytest.fixture(autouse=True)

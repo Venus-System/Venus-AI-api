@@ -104,3 +104,13 @@ def test_config_usa_o_pacote_instalado_e_repassa_a_chave(monkeypatch):
 	assert config["transport"] == "stdio" and config["command"] == settings.tavily_mcp_comando
 	assert config["env"]["TAVILY_API_KEY"] == "tvly-x"
 	assert "npx" not in config["command"]  # nada de baixar pacote no startup
+
+
+def test_subprocesso_da_tavily_recebe_so_a_chave_dela(monkeypatch):
+	"""O servidor MCP é um pacote de terceiros: ele não pode herdar a senha do
+	banco, a chave do Firebase nem as chaves das LLMs. O cliente MCP já passa
+	o PATH e o básico do sistema por conta própria."""
+	monkeypatch.setattr(settings, "tavily_api_key", "tvly-x")
+	monkeypatch.setenv("DATABASE_URL", "postgresql://api_ia:segredo@banco:5432/venus")
+	[(_nome, config)] = busca_web_mcp.config_do_tavily_mcp().items()
+	assert config["env"] == {"TAVILY_API_KEY": "tvly-x"}

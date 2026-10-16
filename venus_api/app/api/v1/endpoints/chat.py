@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, get_args
 
@@ -14,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from venus_sdk.state import Expressao
 
 from venus_api.app.api.deps import get_fluxo_venus, get_limitador, get_pool, get_session_id
+from venus_api.app.core.config import settings
 from venus_api.app.infra.postgres import resolver_usuario_postgres
 from venus_api.app.observability import tracing
 from venus_api.app.schemas.chat import ChatRequest, ChatResponse
@@ -59,13 +61,22 @@ async def chat(
 
     try:
         with tracing.atributos_do_trace(usuario_id, conversation_id):
-            resultado = await fluxo.ainvoke(
-                estado,
-                config={
-                    "configurable": {"thread_id": thread_id},
-                    "callbacks": tracing.callbacks_do_trace(),
-                },
+            resultado = await asyncio.wait_for(
+                fluxo.ainvoke(
+                    estado,
+                    config={
+                        "configurable": {"thread_id": thread_id},
+                        "callbacks": tracing.callbacks_do_trace(),
+                    },
+                ),
+                settings.chat_timeout_segundos,
             )
+    except TimeoutError as erro:
+        logger.error("O grafo Venus passou de %s s (thread_id=%s)", settings.chat_timeout_segundos, thread_id)
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="A Venus demorou demais para responder. Tente de novo.",
+        ) from erro
     except Exception as erro:
         logger.exception("Falha ao invocar o grafo Venus (thread_id=%s)", thread_id)
         raise HTTPException(
