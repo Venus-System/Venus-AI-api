@@ -70,13 +70,17 @@ class Settings(BaseSettings):
     # Com o Mongo fora do ar, quanto tempo o limitador conta só em memória
     # antes de tentar o Mongo de novo (disjuntor).
     chat_limite_mongo_pausa_segundos: int = 30
+    # Tempo máximo de uma mensagem no grafo. Com um provedor de LLM travado, a
+    # API desiste e responde 504 em vez de segurar a conexão até a plataforma
+    # cortar.
+    chat_timeout_segundos: float = 120
 
     # Onde a API está rodando: "desenvolvimento" (padrão), "qa" ou "producao".
     # Em produção, cair num fallback que piora a resposta (ex.: o índice do
     # FAQ sem embeddings semânticos) é log `error` em vez de `warning`.
-    # TODO(infra): definir AMBIENTE=producao na task definition do ECS de
-    # produção (e AMBIENTE=qa na de QA); a task definition não está neste
-    # repositório, e sem a variável o log fica no nível de desenvolvimento.
+    # TODO(infra): a API roda no Render — defina AMBIENTE=producao (ou qa) no
+    # serviço venus-ai-api, em Environment. Sem a variável, o log fica no
+    # nível de desenvolvimento.
     ambiente: str = "desenvolvimento"
 
     # Google Calendar (`/v1/integracoes/google-calendar`): redirect URIs aceitas

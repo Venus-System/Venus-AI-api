@@ -234,3 +234,58 @@ def test_revogar_token_chama_o_endpoint_do_google(monkeypatch):
 	assert asyncio.run(google_oauth.revogar_token_google("tok", transporte=transporte)) is True
 	assert str(pedidos[0].url) == "https://oauth2.googleapis.com/revoke"
 	assert pedidos[0].content == b"token=tok"
+
+
+# --- Revisão técnica 4 ---------------------------------------------------------
+
+
+def test_conectar_nao_gasta_a_cota_do_chat(client, auth_headers, google, monkeypatch):
+	"""Conectar a agenda e conversar contam em separado: quem usou o limite do
+	chat ainda consegue conectar, e conectar não tira mensagens do dia."""
+	monkeypatch.setattr(settings, "chat_limite_por_minuto", 1)
+	assert client.post("/v1/chat", json={"mensagem": "oi"}, headers=auth_headers).status_code == 200
+	assert _post(client, auth_headers).status_code == 204
+
+
+def test_escopo_insuficiente_revoga_o_token_recebido(client, auth_headers, google, monkeypatch):
+	"""Recusar com 422 sem revogar deixava a Venus autorizada na conta Google
+	da pessoa, sem o token estar salvo em lugar nenhum."""
+	async def trocar(code, redirect_uri, **kwargs):
+		return {"access_token": "at", "refresh_token": REFRESH_TOKEN,
+		        "scope": "https://www.googleapis.com/auth/calendar.freebusy"}
+
+	monkeypatch.setattr(endpoint, "trocar_codigo_por_token", trocar)
+	assert _post(client, auth_headers).status_code == 422
+	assert google.revogados == [REFRESH_TOKEN]
+
+
+def test_sem_refresh_token_revoga_o_access_token(client, auth_headers, google, monkeypatch):
+	async def trocar(code, redirect_uri, **kwargs):
+		return {"access_token": "at", "scope": ESCOPO_COMPLETO}
+
+	monkeypatch.setattr(endpoint, "trocar_codigo_por_token", trocar)
+	assert _post(client, auth_headers).status_code == 422
+	assert google.revogados == ["at"]
+
+
+def test_revogacao_falhando_no_422_mantem_o_422(client, auth_headers, google, monkeypatch):
+	async def trocar(code, redirect_uri, **kwargs):
+		return {"access_token": "at", "scope": ESCOPO_COMPLETO}
+
+	async def revogacao_quebrada(token):
+		raise RuntimeError("Google fora do ar")
+
+	monkeypatch.setattr(endpoint, "trocar_codigo_por_token", trocar)
+	monkeypatch.setattr(endpoint, "revogar_token_google", revogacao_quebrada)
+	assert _post(client, auth_headers).status_code == 422
+
+
+def test_delete_com_o_banco_falhando_nao_revoga_e_devolve_503(client, auth_headers, google, monkeypatch):
+	"""Revogar antes de apagar deixava o banco dizendo 'conectado' com um
+	token já revogado. Agora apaga primeiro; se não der, não revoga."""
+	async def remover_quebrado(pool, user_id):
+		raise ConnectionError("Postgres fora do ar")
+
+	monkeypatch.setattr(endpoint, "remover_refresh_token", remover_quebrado)
+	assert client.delete(URL, headers=auth_headers).status_code == 503
+	assert google.revogados == []

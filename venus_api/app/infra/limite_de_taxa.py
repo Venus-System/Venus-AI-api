@@ -27,12 +27,12 @@ from datetime import datetime, timezone
 from typing import Any
 
 from venus_api.app.core.config import settings
+from venus_api.app.infra.mongo import cliente_mongo
 
 logger = logging.getLogger(__name__)
 
 COLECAO_LIMITES = "limites_chat"
 _JANELAS = (("minuto", 60), ("dia", 86_400))
-_TIMEOUT_MONGO_MS = 2000
 _agora = time.monotonic  # relógio do disjuntor; trocado nos testes
 
 
@@ -154,11 +154,7 @@ def criar_limitador() -> LimitadorEmMemoria | LimitadorMongo:
             "Com várias instâncias da API, cada uma conta separado."
         )
         return LimitadorEmMemoria()
-    from pymongo import MongoClient
-
-    # connect=False: o startup não espera o Mongo; a conexão abre na primeira
-    # mensagem, e se falhar o limitador cai no contador em memória. Timeout
-    # curto: com o Mongo fora do ar, cada mensagem esperaria os 30 s padrão
-    # do pymongo antes de cair no fallback.
-    cliente = MongoClient(settings.mongodb_url, connect=False, serverSelectionTimeoutMS=_TIMEOUT_MONGO_MS)
-    return LimitadorMongo(cliente["venus"][COLECAO_LIMITES])
+    # O cliente compartilhado não conecta no startup e tem timeout curto: se a
+    # conexão falhar, o limitador cai no contador em memória sem esperar os
+    # 30 s padrão do pymongo.
+    return LimitadorMongo(cliente_mongo()["venus"][COLECAO_LIMITES])

@@ -20,7 +20,9 @@ class ChatRequest(BaseModel):
     # Omitido na primeira mensagem: a API devolve o id usado e o app o reenvia
     # nas seguintes (contrato combinado com o time do app, pra dar pra evoluir
     # pra histórico de várias conversas sem quebrar o contrato).
-    conversation_id: str | None = None
+    # Teto de tamanho: o id vai para cada checkpoint no Mongo e para o
+    # Langfuse. Cabe com folga o uid do Firebase (o padrão quando omitido).
+    conversation_id: str | None = Field(default=None, max_length=128)
     # Sem `usuario_id_postgres`: o cliente nunca informa identidade. A API
     # descobre o id pelo uid do Firebase (`infra/postgres.py`).
 

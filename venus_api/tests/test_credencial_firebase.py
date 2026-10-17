@@ -78,3 +78,48 @@ def test_chat_com_credencial_quebrada_devolve_500_e_nao_401(client_http, monkeyp
 	response = client_http.post("/v1/chat", json={"mensagem": "oi"}, headers=auth_headers)
 
 	assert response.status_code == 500
+
+
+# A original: o `conftest` troca `_inicializar_firebase` por uma versão falsa em todo teste.
+_INICIALIZAR_REAL = security._inicializar_firebase
+
+
+def test_requisicoes_simultaneas_inicializam_o_firebase_uma_vez_so(monkeypatch):
+	"""Logo depois do boot a web dispara várias requisições juntas. Se duas
+	inicializassem o Firebase, a segunda levaria o `ValueError` de app
+	duplicado, que o `deps.py` transforma num 401 falso."""
+	import threading
+	import time
+
+	apps = []
+
+	def get_app():
+		if not apps:
+			raise ValueError("ainda não há app padrão")
+		return apps[0]
+
+	def initialize_app(credencial):
+		time.sleep(0.05)
+		if apps:
+			raise ValueError("The default Firebase app already exists.")
+		apps.append(credencial)
+
+	monkeypatch.setattr(security.firebase_admin, "get_app", get_app)
+	monkeypatch.setattr(security.firebase_admin, "initialize_app", initialize_app)
+	monkeypatch.setattr(security, "_montar_credencial", lambda: "credencial")
+	erros = []
+
+	def chamar():
+		try:
+			_INICIALIZAR_REAL()
+		except Exception as erro:  # noqa: BLE001
+			erros.append(erro)
+
+	threads = [threading.Thread(target=chamar) for _ in range(8)]
+	for thread in threads:
+		thread.start()
+	for thread in threads:
+		thread.join()
+
+	assert erros == []
+	assert apps == ["credencial"]

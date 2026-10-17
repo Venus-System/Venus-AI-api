@@ -161,3 +161,19 @@ def test_buscar_deixa_a_falha_do_banco_subir():
 	com_erro = _PoolFalso(_ConexaoFalsa(erro=ConnectionRefusedError("banco fora")))
 	with pytest.raises(ConnectionRefusedError):
 		asyncio.run(postgres.buscar_usuario_postgres(com_erro, "uid-x"))
+
+
+def test_pool_loga_banco_e_host_sem_a_senha(com_url, monkeypatch, caplog):
+	"""Com o banco errado no DATABASE_URL (ex.: Venus-2ano em vez de Venus-qa)
+	a API subia sem aviso nenhum; o log do startup mostra qual banco é."""
+
+	async def create_pool(dsn, **kwargs):
+		return PoolFalso()
+
+	monkeypatch.setattr(postgres.asyncpg, "create_pool", create_pool)
+
+	with caplog.at_level("INFO"):
+		asyncio.run(postgres.criar_pool())
+
+	assert "banco venus em banco.exemplo.com:5432" in caplog.text
+	assert "senha" not in caplog.text

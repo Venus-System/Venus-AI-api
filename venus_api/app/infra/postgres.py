@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import urlsplit
 
 import asyncpg
 
@@ -39,7 +40,7 @@ async def criar_pool() -> asyncpg.Pool | None:
         return None
 
     try:
-        return await asyncpg.create_pool(
+        pool = await asyncpg.create_pool(
             settings.database_url,
             min_size=_CONEXOES_MIN,
             max_size=_CONEXOES_MAX,
@@ -52,6 +53,12 @@ async def criar_pool() -> asyncpg.Pool | None:
             exc_info=True,
         )
         return None
+    # Qual banco, sem a senha: apontar para o banco errado (ex.: Venus-2ano em
+    # vez de Venus-qa) não dá erro nenhum, só usuários "sem cadastro".
+    url = urlsplit(settings.database_url)
+    logger.info("Postgres: banco %s em %s:%s (usuário %s).",
+                url.path.lstrip("/"), url.hostname, url.port, url.username)
+    return pool
 
 
 # Quem está no chat é o dono do token do Firebase: o id do Postgres sai daqui,

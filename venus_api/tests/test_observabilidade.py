@@ -82,3 +82,52 @@ def test_chat_com_langfuse_marca_usuario_e_conversa(client, fluxo_falso, monkeyp
 	assert response.status_code == 200
 	assert fluxo_falso.chamadas[0]["config"]["callbacks"] == [marcador]
 	assert atributos == [(UID_DE_TESTE, "conversa-7")]
+
+
+# --- Revisão técnica 4: a métrica não segura a resposta --------------------------
+
+
+def _pedido(caminho: str = "/v1/chat"):
+	from starlette.requests import Request
+
+	return Request({
+		"type": "http", "method": "POST", "path": caminho, "root_path": "", "scheme": "http",
+		"server": ("teste", 80), "headers": [], "query_string": b"",
+	})
+
+
+def test_metrica_e_gravada_depois_que_a_resposta_sai(metricas):
+	"""Gravar no Mongo antes de devolver a resposta atrasava toda requisição
+	(até o timeout do Mongo, com ele fora do ar). A gravação vai como tarefa
+	de segundo plano da resposta."""
+	import asyncio
+
+	from starlette.responses import Response
+
+	async def call_next(_pedido):
+		return Response("ok", status_code=201)
+
+	resposta = asyncio.run(middleware.medir_requisicao(_pedido(), call_next))
+
+	assert metricas.documentos == []
+	asyncio.run(resposta.background())
+	assert metricas.documentos[0]["status"] == 201
+	assert metricas.documentos[0]["rota"] == "/v1/chat"
+
+
+def test_metrica_preserva_a_tarefa_de_segundo_plano_da_propria_resposta(metricas):
+	import asyncio
+
+	from starlette.background import BackgroundTask
+	from starlette.responses import Response
+
+	executadas = []
+
+	async def call_next(_pedido):
+		return Response("ok", background=BackgroundTask(executadas.append, "da rota"))
+
+	resposta = asyncio.run(middleware.medir_requisicao(_pedido(), call_next))
+	asyncio.run(resposta.background())
+
+	assert executadas == ["da rota"]
+	assert len(metricas.documentos) == 1

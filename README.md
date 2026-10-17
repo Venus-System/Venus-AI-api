@@ -50,11 +50,12 @@ elas parte das funções fica desligada.
 | `QDRANT_URL`, `QDRANT_API_KEY` | Coleção do FAQ no Qdrant (alimentada pela ingestão do SDK: `python -m venus_sdk.rag.faq_ingest`) | Índice local em memória sobre `FAQ_DIR`: **FastEmbed** quando o extra `rag` está instalado e o modelo foi baixado (na imagem Docker ele já vem); senão **`EmbeddingsHash`** (busca por palavras, não semântica), com aviso no log. O log do startup diz qual subiu (`Índice do FAQ: IndiceRAG/FastEmbed`) |
 | `FASTEMBED_CACHE_PATH` | Pasta do modelo de embeddings (~220 MB). Na imagem Docker já vem `/modelos/fastembed`, com o modelo baixado no build (e `HF_HUB_OFFLINE=1`) | Fora da imagem: o modelo é baixado no primeiro uso, o que precisa de rede; sem rede, o índice local cai no `EmbeddingsHash` |
 | `VENUS_GUARDRAIL_LLM` | Segunda camada do guardrail de entrada: um LLM rápido classifica o que a regex deixou passar. **Ligada por padrão**; `0` desliga. **Custo: uma chamada extra de LLM rápido por mensagem** que a regex não bloqueou | — (ligada). Se o LLM falhar, a mensagem passa |
-| `AMBIENTE` | `desenvolvimento` (padrão), `qa` ou `producao`. Em `producao`, o índice do FAQ com `EmbeddingsHash` é log `error` | Tratado como `desenvolvimento` |
+| `AMBIENTE` | `desenvolvimento` (padrão), `qa` ou `producao`. Em `producao`, o índice do FAQ com `EmbeddingsHash` é log `error`. No Render, defina no serviço `venus-ai-api` (Environment) | Tratado como `desenvolvimento` |
 | `TAVILY_API_KEY` | Busca na web do agente FAQ pelo **servidor MCP oficial da Tavily** (`tavily-mcp`, versão fixada e instalado na imagem; sessão aberta em segundo plano no startup). Se o servidor não subir ou cair, a busca é feita direto na API da Tavily | Busca direta no DuckDuckGo, sem MCP |
 | `TAVILY_MCP_COMANDO` | Executável do servidor MCP da Tavily (padrão `tavily-mcp`, que a imagem põe no PATH) | — |
 | `MCP_SERVERS` | JSON com servidores MCP externos, cujas tools o agente FAQ pode usar | Sem tools MCP externas |
 | `CHAT_LIMITE_POR_MINUTO`, `CHAT_LIMITE_POR_DIA` | Máximo de mensagens por usuário no `/v1/chat` (padrão 20/min e 300/dia); acima disso, `429` com `Retry-After`. Com `MONGODB_URL` o contador é compartilhado entre instâncias; se o Mongo cair, a API continua no ar e conta em memória por instância, sem tocar no Mongo por `CHAT_LIMITE_MONGO_PAUSA_SEGUNDOS` (padrão 30 s); log `error` só quando cai e `info` quando volta | — |
+| `CHAT_TIMEOUT_SEGUNDOS` | Tempo máximo de uma mensagem no grafo (padrão 120 s). Passou disso, o `/v1/chat` responde `504` em vez de esperar um provedor de LLM travado | — |
 | `HEALTH_API_KEY` | Chave (header `X-API-Key`) do `GET /v1/health/detalhado`, que mostra os contadores do classificador do guardrail (chamadas, falhas, fail-opens, disjuntor) e o estado do índice do FAQ. Sem ela, vale a `A2A_API_KEY` | Sem nenhuma das duas, o detalhado responde 404; o `/v1/health` simples continua público |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Cliente OAuth do Google (Google Console) para trocar o `code` do app pelo token e renovar o acesso. Lidas pelo SDK direto do ambiente | Google Calendar desligado: o agente de Rotina não recebe as tools e os endpoints de integração respondem 503 |
 | `GOOGLE_TOKEN_ENCRYPTION_KEY` | Chave Fernet que cifra o `refresh_token` no Postgres. Gere com `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Trocar a chave invalida os tokens já salvos | Google Calendar desligado |
@@ -75,8 +76,9 @@ Com o ID token do Firebase em `Authorization: Bearer <token>`:
   (`venus_sdk.state.Expressao`) e é escolhida pelo código, nunca pelo modelo.
   Um valor que a API não conhece vira `neutra`.
 - **Erros:** `401` sem token ou com token inválido; `422` mensagem vazia ou
-  longa demais; `429` acima do limite de mensagens, com `Retry-After`; `502`
-  falha ao processar.
+  longa demais, ou `conversation_id` com mais de 128 caracteres; `429` acima
+  do limite de mensagens, com `Retry-After`; `502` falha ao processar; `504`
+  a Venus passou de `CHAT_TIMEOUT_SEGUNDOS`.
 
 ## Google Calendar: conexão pelo app e pela web
 
@@ -107,11 +109,13 @@ A web também precisa da origem dela em `CORS_ORIGENS_PERMITIDAS`.
    A API troca o `code`, confere o escopo e salva o `refresh_token` cifrado.
    Respostas: `204` conectado; `400` `redirect_uri` fora da lista ou `code`
    inválido; `401` sem token; `409` login sem cadastro no Venus; `422`
-   permissão sem criar eventos (reconectar); `429` muitas tentativas; `503`
-   integração não configurada ou Postgres fora do ar.
+   permissão sem criar eventos ou sem acesso contínuo (o token recebido é
+   revogado no Google; reconectar); `429` muitas tentativas de conexão
+   (contadas à parte do chat); `503` integração não configurada ou Postgres
+   fora do ar.
 4. `GET /v1/integracoes/google-calendar` devolve só `{"conectado": bool}`.
-   `DELETE` revoga o acesso no Google e apaga o token (`204`, mesmo se a
-   revogação falhar).
+   `DELETE` apaga o token e depois revoga o acesso no Google (`204`, mesmo se
+   a revogação falhar; `503` se não der para apagar, e aí nada é revogado).
 
 A identidade vem sempre do token: `user_id` ou `usuario_id_postgres` no corpo
 são ignorados.

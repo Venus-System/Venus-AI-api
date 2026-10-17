@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from typing import Any
 
 from venus_api.app.core.config import settings
@@ -33,8 +32,10 @@ def config_do_tavily_mcp() -> dict[str, Any]:
 			"transport": "stdio",
 			"command": settings.tavily_mcp_comando,
 			"args": [],
-			# O subprocesso herda o PATH (para achar o node) e recebe a chave.
-			"env": {**os.environ, "TAVILY_API_KEY": settings.tavily_api_key or ""},
+			# Só a chave da Tavily: o servidor é um pacote de terceiros e não
+			# pode herdar os segredos da API (banco, Firebase, LLMs). O cliente
+			# MCP já passa o PATH (para achar o node) e o básico do sistema.
+			"env": {"TAVILY_API_KEY": settings.tavily_api_key or ""},
 		}
 	}
 
