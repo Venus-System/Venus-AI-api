@@ -1,72 +1,107 @@
-name: Deploy Staging
+name: Deploy AWS EC2
 
 on:
   push:
     branches: [develop]
+  workflow_dispatch:
 
+# O deploy direto usa OIDC (sem chave AWS permanente no GitHub).
+# Requer o segredo AWS_GITHUB_ACTIONS_ROLE_ARN apontando para uma role
+# limitada a ssm:SendCommand/GetCommandInvocation na EC2 abaixo.
 permissions:
   contents: read
-  packages: write
+  id-token: write
 
 env:
-  REGISTRY: ghcr.io
+  AWS_REGION: us-east-1
+  EC2_INSTANCE_ID: i-00a3f43ab04ddba0d
+
+concurrency:
+  group: venus-ai-develop-deploy
+  cancel-in-progress: true
 
 jobs:
-  build-and-push:
-    name: Build, test e publicar imagem
+  verify:
+    name: Testar e validar imagem
     runs-on: ubuntu-latest
-    outputs:
-      image: ${{ steps.meta.outputs.tags }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
-      - name: Instalar dependencias
-        run: python -m pip install --upgrade pip && python -m pip install -r venus_api/requirements-dev.txt
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r venus_api/requirements-dev.txt
 
-      - name: Build e testes
+      - name: Executar testes
         run: python -m pytest
 
       - name: Validar imagem Docker
-        run: docker build --tag venus-api:ci .
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extrair metadados do Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}
-          tags: |
-            type=raw,value=staging
-            type=sha,prefix=develop-,format=short
-
-      - name: Build e push da imagem
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+        run: docker build --tag venus-ai:ci .
 
   deploy:
-    name: Deploy para QA
-    needs: build-and-push
+    name: Deploy para EC2
+    needs: verify
     runs-on: ubuntu-latest
     environment: qa
     steps:
-      - name: Deploy pendente de host
+      - name: Verificar configuração do deploy AWS
+        id: config
+        env:
+          ROLE_ARN: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
         run: |
-          echo "Imagem publicada: ${{ needs.build-and-push.outputs.image }}"
-          echo "Host de QA ainda nao definido - nenhum deploy executado."
+          set -euo pipefail
+          if [[ -n "$ROLE_ARN" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configurar credenciais AWS via OIDC
+        if: steps.config.outputs.enabled == 'true'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+
+      - name: Disparar deploy via Systems Manager
+        if: steps.config.outputs.enabled == 'true'
+        id: send-command
+        run: |
+          set -euo pipefail
+          command_id="$(aws ssm send-command --region "$AWS_REGION" --instance-ids "$EC2_INSTANCE_ID" --document-name AWS-RunShellScript --comment "Deploy Venus AI $GITHUB_SHA" --parameters '{"commands":["sudo systemctl restart venus-ai-deploy.service"]}' --query 'Command.CommandId' --output text)"
+          echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
+
+          for attempt in $(seq 1 36); do
+            status="$(aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$command_id" --instance-id "$EC2_INSTANCE_ID" --query 'Status' --output text 2>/dev/null || true)"
+
+            case "$status" in
+              Success)
+                echo "Deploy concluído na EC2."
+                exit 0
+                ;;
+              Failed|Cancelled|TimedOut)
+                echo "Deploy falhou com status: $status"
+                aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$command_id" --instance-id "$EC2_INSTANCE_ID" --query '{Status:Status,Stdout:StandardOutputContent,Stderr:StandardErrorContent}' --output json
+                exit 1
+                ;;
+            esac
+
+            sleep 5
+          done
+
+          echo "Timeout aguardando o Systems Manager."
+          exit 1
+
+      - name: Fallback para o timer da EC2
+        if: steps.config.outputs.enabled != 'true'
+        run: |
+          echo "::warning::AWS_GITHUB_ACTIONS_ROLE_ARN ainda não está configurada."
+          echo "A EC2 continua usando o timer venus-ai-deploy.timer como fallback."
+          echo "Para deploy imediato, configure a role OIDC descrita na documentação do repositório."
