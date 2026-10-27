@@ -12,6 +12,7 @@ import logging
 from typing import Any
 
 import httpx
+from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from venus_sdk.integrations.google_calendar import (
 	obter_credencial,
@@ -124,7 +125,16 @@ async def consultar(uid: str = Depends(get_session_id), pool: Any = Depends(get_
 	user_id = await _usuario_postgres(pool, uid)
 	try:
 		credencial = await obter_credencial(pool, user_id)
-	except Exception as erro:  # noqa: BLE001 — ex.: chave de cifra trocada
+	except InvalidToken:
+		# Cifrado com outra GOOGLE_TOKEN_ENCRYPTION_KEY: não abre nunca mais, e
+		# um 503 ("tente mais tarde") deixava a pessoa travada. Desconectado, o
+		# app oferece conectar de novo e o POST sobrescreve a linha.
+		logger.warning(
+			"O token do Google (user_id=%s) não abre com a GOOGLE_TOKEN_ENCRYPTION_KEY atual: foi cifrado "
+			"com outra chave. Respondendo desconectado para a pessoa reconectar.", user_id,
+		)
+		return EstadoGoogleCalendar(conectado=False)
+	except Exception as erro:  # noqa: BLE001 — ex.: banco fora do ar, chave ausente
 		logger.error("Não deu para ler a conexão do Google (user_id=%s): %s", user_id, type(erro).__name__)
 		raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Não foi possível consultar a conexão agora.") from erro
 	# Só o booleano: nem o token nem parte dele saem da API.

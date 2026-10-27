@@ -58,7 +58,7 @@ elas parte das funções fica desligada.
 | `CHAT_TIMEOUT_SEGUNDOS` | Tempo máximo de uma mensagem no grafo (padrão 120 s). Passou disso, o `/v1/chat` responde `504` em vez de esperar um provedor de LLM travado | — |
 | `HEALTH_API_KEY` | Chave (header `X-API-Key`) do `GET /v1/health/detalhado`, que mostra os contadores do classificador do guardrail (chamadas, falhas, fail-opens, disjuntor) e o estado do índice do FAQ. Sem ela, vale a `A2A_API_KEY` | Sem nenhuma das duas, o detalhado responde 404; o `/v1/health` simples continua público |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Cliente OAuth do Google (Google Console) para trocar o `code` do app pelo token e renovar o acesso. Lidas pelo SDK direto do ambiente | Google Calendar desligado: o agente de Rotina não recebe as tools e os endpoints de integração respondem 503 |
-| `GOOGLE_TOKEN_ENCRYPTION_KEY` | Chave Fernet que cifra o `refresh_token` no Postgres. Gere com `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Trocar a chave invalida os tokens já salvos | Google Calendar desligado |
+| `GOOGLE_TOKEN_ENCRYPTION_KEY` | Chave Fernet que cifra o `refresh_token` no Postgres. Gere com `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Trocar a chave invalida os tokens já salvos. **Todo lugar que grava no mesmo Postgres usa a mesma chave** (API no Render, API local, `scripts/conectar_google_calendar.py` do SDK): token cifrado com outra chave não abre, e o `GET` responde `{"conectado": false}` até a pessoa reconectar | Google Calendar desligado |
 | `GOOGLE_REDIRECT_URIS_PERMITIDAS` | Redirect URIs aceitas no `POST /v1/integracoes/google-calendar`, separadas por vírgula (as mesmas do Google Console) | Nenhuma é aceita (400) |
 | `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Neo4j do check-up da rotina (conflitos de ativos, ordem, repetidos) | Check-up desligado: a tool nem é registrada |
 | `A2A_AGENTES_EXTERNOS` | JSON `{"nome": "http://host:porta"}` de agentes A2A que o FAQ pode consultar | Sem consulta a agentes externos |
@@ -114,6 +114,9 @@ A web também precisa da origem dela em `CORS_ORIGENS_PERMITIDAS`.
    (contadas à parte do chat); `503` integração não configurada ou Postgres
    fora do ar.
 4. `GET /v1/integracoes/google-calendar` devolve só `{"conectado": bool}`.
+   Token salvo que não abre com a `GOOGLE_TOKEN_ENCRYPTION_KEY` atual conta
+   como desconectado (com aviso no log): reconectar sobrescreve o token. `503`
+   se o Postgres estiver fora do ar ou a chave não estiver configurada.
    `DELETE` apaga o token e depois revoga o acesso no Google (`204`, mesmo se
    a revogação falhar; `503` se não der para apagar, e aí nada é revogado).
 
