@@ -7,6 +7,8 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from cryptography.fernet import Fernet
+from venus_sdk.integrations.google_calendar import obter_credencial
 
 from venus_api.app.api.deps import get_pool
 from venus_api.app.api.v1.endpoints import google_calendar as endpoint
@@ -184,6 +186,49 @@ def test_get_sem_conexao(client, auth_headers, google, monkeypatch):
 
 	monkeypatch.setattr(endpoint, "obter_credencial", nada)
 	assert client.get(URL, headers=auth_headers).json() == {"conectado": False}
+
+
+class _PoolComToken:
+	"""Pool falso com uma linha de `venus.google_oauth_tokens`, para usar o
+	`obter_credencial` de verdade do SDK (e a decifragem de verdade)."""
+
+	def __init__(self, cifrado: bytes) -> None:
+		self.cifrado = cifrado
+
+	def acquire(self):
+		return self
+
+	async def __aenter__(self):
+		return self
+
+	async def __aexit__(self, *erro):
+		return False
+
+	async def fetchrow(self, query, user_id):
+		return {"encrypted_refresh_token": self.cifrado, "scope": ESCOPO_COMPLETO}
+
+
+def test_get_com_token_de_outra_chave_responde_desconectado(client, auth_headers, google, monkeypatch, caplog):
+	"""Token salvo com outra GOOGLE_TOKEN_ENCRYPTION_KEY nunca mais abre: o 503
+	("tente mais tarde") deixava a pessoa travada. Desconectado, o app oferece
+	conectar de novo e o POST sobrescreve a linha com a chave atual."""
+	cifrado_com_outra_chave = Fernet(Fernet.generate_key()).encrypt(REFRESH_TOKEN.encode())
+	monkeypatch.setenv("GOOGLE_TOKEN_ENCRYPTION_KEY", Fernet.generate_key().decode())
+	monkeypatch.setattr(endpoint, "obter_credencial", obter_credencial)
+	app.dependency_overrides[get_pool] = lambda: _PoolComToken(cifrado_com_outra_chave)
+
+	resposta = client.get(URL, headers=auth_headers)
+	assert resposta.status_code == 200 and resposta.json() == {"conectado": False}
+	assert any(r.levelname == "WARNING" and "GOOGLE_TOKEN_ENCRYPTION_KEY" in r.getMessage() for r in caplog.records)
+	assert all(REFRESH_TOKEN not in r.getMessage() for r in caplog.records)
+
+
+def test_get_sem_chave_de_cifra_continua_503(client, auth_headers, google, monkeypatch):
+	# Chave ausente é configuração quebrada para todo mundo, não "desconectado".
+	monkeypatch.delenv("GOOGLE_TOKEN_ENCRYPTION_KEY")
+	monkeypatch.setattr(endpoint, "obter_credencial", obter_credencial)
+	app.dependency_overrides[get_pool] = lambda: _PoolComToken(b"qualquer")
+	assert client.get(URL, headers=auth_headers).status_code == 503
 
 
 # --- DELETE ------------------------------------------------------------------
