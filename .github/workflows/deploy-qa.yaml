@@ -1,23 +1,17 @@
-name: Deploy AWS EC2
+name: Validate Venus AI and deploy via EC2 poller
 
 on:
   push:
     branches: [develop]
   workflow_dispatch:
 
-# O deploy direto usa OIDC (sem chave AWS permanente no GitHub).
-# Requer o segredo AWS_GITHUB_ACTIONS_ROLE_ARN apontando para uma role
-# limitada a ssm:SendCommand/GetCommandInvocation na EC2 abaixo.
+# A EC2 v2 já existente sincroniza origin/develop por um timer local.
+# Não usamos OIDC, chaves AWS nem recursos AWS adicionais nesta conta Lab.
 permissions:
   contents: read
-  id-token: write
-
-env:
-  AWS_REGION: us-east-1
-  EC2_INSTANCE_ID: i-0add07f5eff218203
 
 concurrency:
-  group: venus-ai-develop-deploy
+  group: venus-ai-develop-verify
   cancel-in-progress: true
 
 jobs:
@@ -45,62 +39,20 @@ jobs:
       - name: Validar imagem Docker
         run: docker build --tag venus-ai:ci .
 
+      - name: Validar arquivos do deploy sem custo
+        run: |
+          test -f deploy/venus-ai-deploy-check.sh
+          test -f deploy/venus-ai-deploy-poller.service
+          test -f deploy/venus-ai-deploy-poller.timer
+
   deploy:
-    name: Deploy para EC2 v2
+    name: Entregar para o poller da EC2 v2
     needs: verify
     runs-on: ubuntu-latest
-    environment: qa
     steps:
-      - name: Verificar configuração do deploy AWS
-        id: config
-        env:
-          ROLE_ARN: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
+      - name: Confirmar sincronização automática
         run: |
-          set -euo pipefail
-          if [[ -n "$ROLE_ARN" ]]; then
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Configurar credenciais AWS via OIDC
-        if: steps.config.outputs.enabled == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
-
-      - name: Disparar deploy via Systems Manager
-        if: steps.config.outputs.enabled == 'true'
-        id: send-command
-        run: |
-          set -euo pipefail
-          command_id="$(aws ssm send-command --region "$AWS_REGION" --instance-ids "$EC2_INSTANCE_ID" --document-name AWS-RunShellScript --comment "Deploy Venus AI $GITHUB_SHA" --parameters '{"commands":["sudo systemctl restart venus-ai-deploy.service"]}' --query 'Command.CommandId' --output text)"
-          echo "command_id=$command_id" >> "$GITHUB_OUTPUT"
-
-          for attempt in $(seq 1 36); do
-            status="$(aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$command_id" --instance-id "$EC2_INSTANCE_ID" --query 'Status' --output text 2>/dev/null || true)"
-
-            case "$status" in
-              Success)
-                echo "Deploy concluído na EC2 v2."
-                exit 0
-                ;;
-              Failed|Cancelled|TimedOut)
-                echo "Deploy falhou com status: $status"
-                aws ssm get-command-invocation --region "$AWS_REGION" --command-id "$command_id" --instance-id "$EC2_INSTANCE_ID" --query '{Status:Status,Stdout:StandardOutputContent,Stderr:StandardErrorContent}' --output json
-                exit 1
-                ;;
-            esac
-
-            sleep 5
-          done
-
-          echo "Timeout aguardando o Systems Manager."
-          exit 1
-
-      - name: Avisar se a role OIDC não estiver configurada
-        if: steps.config.outputs.enabled != 'true'
-        run: |
-          echo "::warning::AWS_GITHUB_ACTIONS_ROLE_ARN ainda não está configurada."
-          echo "O workflow não enviará o comando de deploy até a role OIDC e o segredo serem configurados."
+          echo "Validação concluída para $GITHUB_SHA."
+          echo "A EC2 v2 monitora origin/develop pelo venus-ai-deploy-poller.timer."
+          echo "Quando o merge chegar em develop, o serviço local inicia o deploy em até 1 minuto."
+          echo "Nenhuma credencial AWS nem recurso AWS adicional é usado pelo workflow."
