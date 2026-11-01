@@ -9,6 +9,7 @@ from venus_sdk.rag.web import BuscaWebMcp
 from venus_api.app.api.a2a import ROTA_A2A, A2ADinamico, criar_app_a2a
 from venus_api.app.api.v1.router import router as v1_router
 from venus_api.app.core.config import settings
+from venus_api.app.core.latencia import priorizar_modelos_rapidos
 from venus_api.app.infra.busca_web_mcp import SessaoTavilyMcp
 from venus_api.app.infra.checkpointer import criar_checkpointer
 from venus_api.app.infra.ferramentas_externas import carregar_tools_faq_extras
@@ -39,6 +40,9 @@ async def lifespan(app: FastAPI):
     tarefa_do_mcp = asyncio.create_task(tavily_mcp.abrir()) if settings.tavily_api_key else None
     busca_web_faq = BuscaWebMcp(lambda: tavily_mcp.tool) if tarefa_do_mcp is not None else None
     try:
+        # O SDK lê as cadeias no momento em que o grafo é compilado. Isso
+        # corrige a configuração antiga da EC2 antes da primeira requisição.
+        priorizar_modelos_rapidos()
         app.state.fluxo_venus = compilar_grafo_venus(
             checkpointer=criar_checkpointer(),
             store=criar_store(),

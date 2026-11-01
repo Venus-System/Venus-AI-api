@@ -16,6 +16,7 @@ from venus_sdk.memory.checkpointer import (
 )
 
 from venus_api.app.core.config import settings
+from venus_api.app.infra.mongo import TIMEOUT_MONGO_MS, mongodb_url_com_timeout_curto
 
 logger = logging.getLogger(__name__)
 
@@ -35,4 +36,6 @@ def criar_checkpointer() -> Any:
         )
         return criar_checkpointer_em_memoria()
 
-    return criar_checkpointer_mongo(settings.mongodb_url)
+    return criar_checkpointer_mongo(
+        mongodb_url_com_timeout_curto(settings.mongodb_url), timeout_ms=TIMEOUT_MONGO_MS
+    )
