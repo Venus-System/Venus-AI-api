@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pymongo import MongoClient
 
@@ -17,10 +18,28 @@ from venus_api.app.core.config import settings
 TIMEOUT_MONGO_MS = 2000
 
 
+def mongodb_url_com_timeout_curto(url: str) -> str:
+    """Adiciona timeouts de socket à URI sem alterar credenciais existentes."""
+    partes = urlsplit(url)
+    parametros = parse_qsl(partes.query, keep_blank_values=True)
+    presentes = {chave.lower() for chave, _ in parametros}
+    parametros += [
+        (chave, str(TIMEOUT_MONGO_MS))
+        for chave in ("socketTimeoutMS", "waitQueueTimeoutMS")
+        if chave.lower() not in presentes
+    ]
+    return urlunsplit((partes.scheme, partes.netloc, partes.path, urlencode(parametros), partes.fragment))
+
+
 @lru_cache(maxsize=1)
 def cliente_mongo() -> MongoClient | None:
     """`None` sem MONGODB_URL. `connect=False`: o startup não espera o Mongo;
     a conexão abre no primeiro uso."""
     if not settings.mongodb_url:
         return None
-    return MongoClient(settings.mongodb_url, connect=False, serverSelectionTimeoutMS=TIMEOUT_MONGO_MS)
+    return MongoClient(
+        mongodb_url_com_timeout_curto(settings.mongodb_url),
+        connect=False,
+        serverSelectionTimeoutMS=TIMEOUT_MONGO_MS,
+        connectTimeoutMS=TIMEOUT_MONGO_MS,
+    )

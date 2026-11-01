@@ -50,6 +50,7 @@ def test_pool_usa_poucas_conexoes(com_url, monkeypatch):
 	assert dsn == URL_DE_TESTE
 	assert kwargs["min_size"] == 1
 	assert kwargs["max_size"] == 2
+	assert kwargs["command_timeout"] == postgres._SEGUNDOS_PRA_CONSULTAR_USUARIO
 
 
 @pytest.mark.parametrize(

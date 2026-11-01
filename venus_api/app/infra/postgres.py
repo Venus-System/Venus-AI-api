@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 from urllib.parse import urlsplit
@@ -22,6 +23,7 @@ logger = logging.getLogger(__name__)
 _CONEXOES_MIN = 1
 _CONEXOES_MAX = 2
 _SEGUNDOS_PRA_CONECTAR = 10
+_SEGUNDOS_PRA_CONSULTAR_USUARIO = 1.5
 
 
 async def criar_pool() -> asyncpg.Pool | None:
@@ -45,6 +47,7 @@ async def criar_pool() -> asyncpg.Pool | None:
             min_size=_CONEXOES_MIN,
             max_size=_CONEXOES_MAX,
             timeout=_SEGUNDOS_PRA_CONECTAR,
+            command_timeout=_SEGUNDOS_PRA_CONSULTAR_USUARIO,
         )
     except Exception:
         logger.error(
@@ -83,7 +86,10 @@ async def resolver_usuario_postgres(pool: Any, firebase_uid: str) -> int | None:
     if pool is None or not firebase_uid:
         return None
     try:
-        return await buscar_usuario_postgres(pool, firebase_uid)
+        return await asyncio.wait_for(
+            buscar_usuario_postgres(pool, firebase_uid),
+            timeout=_SEGUNDOS_PRA_CONSULTAR_USUARIO,
+        )
     except Exception:
         logger.error("Não consegui resolver o usuário do Postgres pelo uid do Firebase.", exc_info=True)
         return None

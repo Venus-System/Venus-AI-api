@@ -13,6 +13,7 @@ from typing import Any
 from venus_sdk.memory.store import criar_store_em_memoria, criar_store_mongo
 
 from venus_api.app.core.config import settings
+from venus_api.app.infra.mongo import TIMEOUT_MONGO_MS, mongodb_url_com_timeout_curto
 
 logger = logging.getLogger(__name__)
 
@@ -31,4 +32,6 @@ def criar_store() -> Any:
         )
         return criar_store_em_memoria()
 
-    return criar_store_mongo(settings.mongodb_url)
+    return criar_store_mongo(
+        mongodb_url_com_timeout_curto(settings.mongodb_url), timeout_ms=TIMEOUT_MONGO_MS
+    )
