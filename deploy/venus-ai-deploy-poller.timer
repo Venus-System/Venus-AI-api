@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Venus AI develop branch every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+AccuracySec=15s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
