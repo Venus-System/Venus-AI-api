@@ -17,11 +17,13 @@ python -m pip install -r venus_api/requirements-dev.txt
 
 `requirements.txt` tem só o que vai para produção (é o que a imagem Docker
 instala); `requirements-dev.txt` acrescenta `pytest` e `httpx`. O SDK é
-instalado por **tag** (`@v0.4.0`), não por branch — para atualizar, siga o
+instalado por **tag** (`@v0.5.0`), não por branch — para atualizar, siga o
 processo de release do README do SDK e troque a tag. A suíte roda contra o
 SDK instalado assim (nunca `pip install -e` de um checkout local), e
-`tests/test_versao_sdk.py` falha se a versão instalada for menor que a 0.4.0,
-não tiver as correções do guardrail ou não tiver a `expressao` do chat.
+`tests/test_versao_sdk.py` falha se a versão instalada for menor que a 0.5.0,
+não tiver as correções do guardrail, a `expressao` do chat ou o resultado do turno.
+A partir da 0.5.0, o usuário do Postgres precisa de `SELECT` em `venus.users` e
+`venus.user_preferences`.
 
 ## Testes
 
@@ -59,6 +61,7 @@ fora dele.
 | `QDRANT_URL`, `QDRANT_API_KEY` | Coleção do FAQ no Qdrant (alimentada pela ingestão do SDK: `python -m venus_sdk.rag.faq_ingest`) | Índice local em memória sobre `FAQ_DIR`: **FastEmbed** quando o extra `rag` está instalado e o modelo foi baixado (na imagem Docker ele já vem); senão **`EmbeddingsHash`** (busca por palavras, não semântica), com aviso no log. O log do startup diz qual subiu (`Índice do FAQ: IndiceRAG/FastEmbed`) |
 | `FASTEMBED_CACHE_PATH` | Pasta do modelo de embeddings (~220 MB). Na imagem Docker já vem `/modelos/fastembed`, com o modelo baixado no build (e `HF_HUB_OFFLINE=1`) | Fora da imagem: o modelo é baixado no primeiro uso, o que precisa de rede; sem rede, o índice local cai no `EmbeddingsHash` |
 | `VENUS_GUARDRAIL_LLM` | Segunda camada do guardrail de entrada: um LLM rápido classifica o que a regex deixou passar. **Ligada por padrão**; `0` desliga. **Custo: uma chamada extra de LLM rápido por mensagem** que a regex não bloqueou | — (ligada). Se o LLM falhar, a mensagem passa |
+| `VENUS_MEMORIA_TTL_DIAS` | Dias sem reafirmar um fato da memória de longo prazo até ele deixar de valer. `0` desliga | `180` |
 | `VENUS_PRIORIZAR_MODELOS_RAPIDOS` | Mantém os modelos Mistral rápidos antes dos fallbacks lentos no startup (`1` por padrão). Use `0` apenas se precisar preservar uma ordem própria | `1` |
 | `AMBIENTE` | `desenvolvimento` (padrão), `qa` ou `producao`. Em `producao`, o índice do FAQ com `EmbeddingsHash` é log `error`. No Render, defina no serviço `venus-ai-api` (Environment) | Tratado como `desenvolvimento` |
 | `TAVILY_API_KEY` | Busca na web do agente FAQ pelo **servidor MCP oficial da Tavily** (`tavily-mcp`, versão fixada e instalado na imagem; sessão aberta em segundo plano no startup). Se o servidor não subir ou cair, a busca é feita direto na API da Tavily | Busca direta no DuckDuckGo, sem MCP |
