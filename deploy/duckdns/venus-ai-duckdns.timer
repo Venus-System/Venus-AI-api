@@ -1,0 +1,10 @@
+[Unit]
+Description=Atualizar periodicamente o IPv4 da Venus AI no DuckDNS
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -70,10 +70,11 @@ class Settings(BaseSettings):
     # Com o Mongo fora do ar, quanto tempo o limitador conta só em memória
     # antes de tentar o Mongo de novo (disjuntor).
     chat_limite_mongo_pausa_segundos: int = 30
-    # Tempo máximo de uma mensagem no grafo. Com um provedor de LLM travado, a
-    # API desiste e responde 504 em vez de segurar a conexão até a plataforma
-    # cortar.
-    chat_timeout_segundos: float = 120
+    # Tempo máximo de uma mensagem no grafo. O cliente mobile tem limite de
+    # 30 s; deixamos margem para autenticação, proxy e transporte antes desse
+    # limite. Com um provedor de LLM travado, a API desiste e responde 504 em
+    # vez de segurar a conexão até a plataforma cortar.
+    chat_timeout_segundos: float = 25
 
     # Onde a API está rodando: "desenvolvimento" (padrão), "qa" ou "producao".
     # Em produção, cair num fallback que piora a resposta (ex.: o índice do
