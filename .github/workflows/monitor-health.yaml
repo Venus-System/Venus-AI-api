@@ -1,0 +1,19 @@
+name: Monitorar health da Venus AI
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+
+jobs:
+  health:
+    name: Verificar endpoint público
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Testar /v1/health
+        env:
+          VENUS_AI_URL: https://venus-ai.duckdns.org
+        run: |
+          curl --fail --silent --show-error --max-time 15 \
+            "$VENUS_AI_URL/v1/health"

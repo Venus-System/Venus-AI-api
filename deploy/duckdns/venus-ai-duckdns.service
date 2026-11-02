@@ -1,0 +1,9 @@
+[Unit]
+Description=Atualizar o IPv4 da Venus AI no DuckDNS
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/duckdns/update.env
+ExecStart=/usr/bin/curl --fail --silent --show-error --max-time 10 "https://www.duckdns.org/update?domains=${DUCK_DOMAIN}&token=${DUCK_TOKEN}&ip="
