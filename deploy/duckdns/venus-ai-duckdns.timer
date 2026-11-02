@@ -2,8 +2,8 @@
 Description=Atualizar periodicamente o IPv4 da Venus AI no DuckDNS
 
 [Timer]
-OnBootSec=30s
-OnUnitActiveSec=5min
+OnBootSec=5s
+OnUnitActiveSec=1min
 Persistent=true
 
 [Install]
