@@ -60,7 +60,7 @@ async def chat(
         estado["usuario_id_postgres"] = usuario_id_postgres
 
     try:
-        with tracing.atributos_do_trace(usuario_id, conversation_id):
+        with tracing.turno_no_trace(usuario_id, conversation_id, requisicao.mensagem) as turno:
             resultado = await asyncio.wait_for(
                 fluxo.ainvoke(
                     estado,
@@ -71,6 +71,7 @@ async def chat(
                 ),
                 settings.chat_timeout_segundos,
             )
+            turno.registrar(resultado)
     except TimeoutError as erro:
         logger.error("O grafo Venus passou de %s s (thread_id=%s)", settings.chat_timeout_segundos, thread_id)
         raise HTTPException(
