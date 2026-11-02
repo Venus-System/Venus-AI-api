@@ -35,7 +35,16 @@ python -m pytest
 
 As variáveis vão num arquivo `.env` na raiz (local) ou no gerenciador de
 segredos do ambiente (nuvem). Nenhuma é obrigatória para a API subir, mas sem
-elas parte das funções fica desligada.
+elas parte das funções fica desligada. Para começar, copie o modelo e preencha
+o que for usar:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+O `.env.example` tem todas as variáveis da tabela abaixo;
+`tests/test_env_example.py` falha se uma variável nova do `Settings` ficar de
+fora dele.
 
 | Variável | Para quê | Sem ela |
 |---|---|---|
