@@ -35,7 +35,16 @@ python -m pytest
 
 As variáveis vão num arquivo `.env` na raiz (local) ou no gerenciador de
 segredos do ambiente (nuvem). Nenhuma é obrigatória para a API subir, mas sem
-elas parte das funções fica desligada.
+elas parte das funções fica desligada. Para começar, copie o modelo e preencha
+o que for usar:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+O `.env.example` tem todas as variáveis da tabela abaixo;
+`tests/test_env_example.py` falha se uma variável nova do `Settings` ficar de
+fora dele.
 
 | Variável | Para quê | Sem ela |
 |---|---|---|
@@ -44,7 +53,7 @@ elas parte das funções fica desligada.
 | `CORS_ORIGENS_PERMITIDAS` | Origens que podem chamar a API pelo navegador (a web), separadas por vírgula e sem barra no fim. Ex.: `http://localhost:5173,https://venus-web-application.vercel.app`. Libera `GET`, `POST` e `DELETE` com os cabeçalhos `Authorization` e `Content-Type`, e expõe o `Retry-After` do `429`. O app mobile não passa por CORS | O navegador bloqueia todas as chamadas da web; o app continua funcionando |
 | `MONGODB_URL` | Histórico de conversa, memória de longo prazo, métricas e contador do limite de mensagens | Histórico e memória em RAM (perdidos ao reiniciar), métricas não são gravadas e o limite conta por instância |
 | `DATABASE_URL` | Postgres do CRUD (produto, ingrediente, alergia) e identificação do usuário pelo `uid` do Firebase (`venus.users.firebase_uid`) | Esses especialistas avisam que não conseguiram consultar, e a conversa fica sem os dados da conta (favoritos, alergias) |
-| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | Rastreamento no Langfuse | Sem rastreamento |
+| `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL` | Rastreamento no Langfuse: um trace `venus-chat` por mensagem, com usuário e conversa, o tempo de cada nó do grafo, tokens e custo, e o resultado do turno no metadata (`rota`, `entrada_bloqueada`, `saida_bloqueada`, `aprovado_juiz`, `juiz_decidiu_por`, `tentativas_juiz`, `alertas_alergia_anexados`, `expressao`). `juiz_decidiu_por` e `alertas_alergia_anexados` só chegam com um SDK depois da `v0.4.0` | Sem rastreamento |
 | `A2A_API_KEY`, `A2A_BASE_URL` | Servidor A2A em `/a2a` (chave no header `X-API-Key`; a URL pública da API, sem barra no fim) | Servidor A2A desligado — precisa das duas |
 | `FAQ_DIR` | Outra pasta com documentos do FAQ para o RAG do agente FAQ | Usa os documentos empacotados no SDK instalado (`venus_sdk/data/faq`, mantidos no repositório do SDK) |
 | `QDRANT_URL`, `QDRANT_API_KEY` | Coleção do FAQ no Qdrant (alimentada pela ingestão do SDK: `python -m venus_sdk.rag.faq_ingest`) | Índice local em memória sobre `FAQ_DIR`: **FastEmbed** quando o extra `rag` está instalado e o modelo foi baixado (na imagem Docker ele já vem); senão **`EmbeddingsHash`** (busca por palavras, não semântica), com aviso no log. O log do startup diz qual subiu (`Índice do FAQ: IndiceRAG/FastEmbed`) |

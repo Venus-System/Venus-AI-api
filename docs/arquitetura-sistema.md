@@ -90,6 +90,11 @@ flowchart TB
   rotina. Sem as variáveis, as tools nem são registradas e o startup loga o
   motivo. O Neo4j é uma cópia do Postgres + regras do SDK, refeita pelo
   workflow manual "Sincronizar Neo4j".
+- **Observabilidade:** com as chaves do Langfuse, cada mensagem vira um trace
+  `venus-chat`: os nós do grafo ficam dentro dele, e no fim a API grava o
+  resultado do turno, lido do estado final (rota, guardrails, veredito do Juiz
+  e quem o deu, tentativas, alertas de alergia anexados). A duração e o status
+  de cada requisição vão para o Mongo pelo middleware.
 - **Navegador:** a web chama a API direto do navegador. O CORS só libera as
   origens de `CORS_ORIGENS_PERMITIDAS` e responde o preflight antes do
   middleware de métricas, então o `OPTIONS` não vira métrica. O app mobile
