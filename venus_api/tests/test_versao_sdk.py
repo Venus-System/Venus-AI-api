@@ -9,15 +9,16 @@ from __future__ import annotations
 
 from packaging.version import Version
 
-VERSAO_MINIMA_DO_SDK = Version("0.4.0")
+VERSAO_MINIMA_DO_SDK = Version("0.5.0")
 
 
-def test_sdk_instalado_e_0_4_0_ou_maior():
+def test_sdk_instalado_e_0_5_0_ou_maior():
 	import venus_sdk
 
-	# `venus_sdk.__version__` só existe a partir da 0.2.0; a API precisa da 0.4.0
+	# `venus_sdk.__version__` só existe a partir da 0.2.0; a API precisa da 0.5.0
 	# (a 0.3.0 trouxe estatisticas_guardrail_llm, BuscaWebMcp e o índice do FAQ
-	# em segundo plano; a 0.4.0, a `expressao` do chat).
+	# em segundo plano; a 0.4.0, a `expressao` do chat; a 0.5.0, o resultado do
+	# turno que vai para o trace).
 	assert Version(getattr(venus_sdk, "__version__", "0.0.0")) >= VERSAO_MINIMA_DO_SDK
 
 
@@ -33,3 +34,11 @@ def test_sdk_instalado_tem_a_expressao_do_chat():
 	from venus_sdk.state import Expressao
 
 	assert set(get_args(Expressao)) == {"neutra", "magoada"}
+
+
+def test_sdk_instalado_tem_o_resultado_do_turno():
+	from typing import get_type_hints
+
+	from venus_sdk.nodes.state import EstadoVenus
+
+	assert {"juiz_decidiu_por", "alertas_alergia_anexados"} <= set(get_type_hints(EstadoVenus))
