@@ -4,6 +4,8 @@ Visão de alto nível da API (`Venus-AI-api`) e do SDK (`Venus-AI-Sdk`), como
 estão no código. Linhas tracejadas são componentes **opcionais**, que só ligam
 com a variável de ambiente correspondente.
 
+> **SDK v0.6.0:** nas rotas de `VENUS_RESPOSTA_SO_DAS_TOOLS` (padrão: produto, ingrediente, rotina e FAQ), o código monta a resposta só com tools e documentos, e o Juiz aprova sem conferir. O FAQ padrão não busca na web; MCP e A2A entram quando os documentos não respondem. Os caminhos de web e de reprovação abaixo valem só para rota fora dessa variável.
+
 ## Componentes
 
 ```mermaid
@@ -13,7 +15,7 @@ flowchart TB
     firebase["Firebase Auth<br/>(ID token)"]
     externo["Sistema externo<br/>(cliente A2A)"]
 
-    subgraph ecs["API FastAPI — AWS ECS"]
+    subgraph ecs["API FastAPI — AWS EC2"]
         chat["POST /v1/chat<br/>token -> uid<br/>limite por uid (429)<br/>uid -> user_id (Postgres)"]
         a2a_srv["/a2a — servidor A2A<br/>(X-API-Key)"]
         gcal_api["/v1/integracoes/google-calendar<br/>POST conectar · GET estado · DELETE<br/>token -> uid -> user_id"]
