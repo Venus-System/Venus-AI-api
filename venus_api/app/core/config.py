@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     # 30 s; deixamos margem para autenticação, proxy e transporte antes desse
     # limite. Com um provedor de LLM travado, a API desiste e responde 504 em
     # vez de segurar a conexão até a plataforma cortar.
-    chat_timeout_segundos: float = 25
+    chat_timeout_segundos: float = 60
 
     # Onde a API está rodando: "desenvolvimento" (padrão), "qa" ou "producao".
     # Em produção, cair num fallback que piora a resposta (ex.: o índice do
