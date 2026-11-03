@@ -17,10 +17,10 @@ python -m pip install -r venus_api/requirements-dev.txt
 
 `requirements.txt` tem só o que vai para produção (é o que a imagem Docker
 instala); `requirements-dev.txt` acrescenta `pytest` e `httpx`. O SDK é
-instalado por **tag** (`@v0.5.0`), não por branch — para atualizar, siga o
+instalado por **tag** (`@v0.6.0`), não por branch — para atualizar, siga o
 processo de release do README do SDK e troque a tag. A suíte roda contra o
 SDK instalado assim (nunca `pip install -e` de um checkout local), e
-`tests/test_versao_sdk.py` falha se a versão instalada for menor que a 0.5.0,
+`tests/test_versao_sdk.py` falha se a versão instalada for menor que a 0.6.0,
 não tiver as correções do guardrail, a `expressao` do chat ou o resultado do turno.
 A partir da 0.5.0, o usuário do Postgres precisa de `SELECT` em `venus.users` e
 `venus.user_preferences`.
