@@ -34,6 +34,8 @@ def _resposta_com_a_fonte_da_web(mensagens: list[BaseMessage]) -> AIMessage:
 
 @pytest.fixture
 def grafo_com_busca_web(monkeypatch):
+	# Exercita o FAQ com agente: o fluxo padrão do SDK 0.6.0 não usa web e monta o texto em código.
+	monkeypatch.setenv("VENUS_RESPOSTA_SO_DAS_TOOLS", "")
 	from venus_sdk.nodes import especialistas, juiz, memoria, orquestrador, roteador
 	from venus_sdk.rag import web
 

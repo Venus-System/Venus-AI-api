@@ -57,6 +57,8 @@ def _orquestrador_repete_o_especialista(mensagens: list[BaseMessage]) -> AIMessa
 
 @pytest.fixture
 def grafo_real_com_llm_falso(monkeypatch):
+	# Exercita o FAQ com agente: o fluxo padrão do SDK 0.6.0 não usa web e monta o texto em código.
+	monkeypatch.setenv("VENUS_RESPOSTA_SO_DAS_TOOLS", "")
 	from venus_sdk.nodes import especialistas, juiz, memoria, orquestrador, roteador
 
 	pergunta = "como funciona o score do Venus?"
